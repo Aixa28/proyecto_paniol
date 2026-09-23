@@ -2,7 +2,7 @@
     import { useMemo, useState } from "react";
     import { useStore } from "../context/StoreProvider";
     import ReportsTable from "../components/Reports/ReportsTable";
-    import * as XLSX from "xlsx";
+    import excelJS from "excelJS";
     import { jsPDF } from "jspdf";
     import autoTable from "jspdf-autotable";
     import { saveAs } from "file-saver";
