@@ -14,25 +14,6 @@ export default function StockMovementModal({ material, onClose }) {
   
   // cambiando el manejador para que actualize el taller y docente al mismo tiempo
   const handleTallerChange = (e) => {
-    const selectedDenominacion = e.target.value;
-    setDepartment(selectedDenominacion);
-
-    // buscar el taller en la lista
-    const selectedTaller = talleres.find(t => t.Denominacion === selectedDenominacion);
-    if (selectedTaller) {
-      // buscar el docente vinculado al taller
-      const docente = teachers.find(d => d.Id_Taller === selectedTaller.Id_Taller);
-      if (docente) {
-        setResponsible(`${docente.Nombre} ${docente.Apellido}`);
-      } else {
-        setResponsible("");
-      }
-    } else {
-      setResponsible("");
-    }
-  };
-  // cambiando el manejador para que actualize el taller y docente al mismo tiempo
-  const handleTallerChange = (e) => {
     const selectedId = Number(e.target.value);
     
     if (!selectedId) {
@@ -206,7 +187,7 @@ export default function StockMovementModal({ material, onClose }) {
               </select>
             </div>
           )}
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
             <textarea
