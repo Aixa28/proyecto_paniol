@@ -31,7 +31,36 @@ export default function StockMovementModal({ material, onClose }) {
       setResponsible("");
     }
   };
+  // cambiando el manejador para que actualize el taller y docente al mismo tiempo
+  const handleTallerChange = (e) => {
+    const selectedId = Number(e.target.value);
+    
+    if (!selectedId) {
+      setDepartment("");
+      setResponsible("");
+      return;
+    }
 
+    // busca el taller exactamente por su id
+    const selectedTaller = talleres.find(t => Number(t.Id_Taller) === selectedId);
+    
+    if (selectedTaller) {
+      // guardar denominación (o combinación con turno/año si lo usas en UI)
+      setDepartment(selectedTaller.Denominacion);
+
+      // 2. buscar el docente vinculado convirtiendo ambos IDs a número
+      const docente = teachers.find(d => Number(d.Id_Taller) === Number(selectedTaller.Id_Taller));
+      
+      if (docente) {
+        setResponsible(`${docente.Nombre} ${docente.Apellido}`);
+      } else {
+        setResponsible("");
+      }
+    } else {
+      setDepartment("");
+      setResponsible("");
+    }
+  };
   const onSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -114,6 +143,7 @@ export default function StockMovementModal({ material, onClose }) {
                   onChange={() => setMovementType("Ingreso")}
                   className="form-radio h-4 w-4 text-blue-600"
                 />
+                
                 <span className="ml-2 text-sm text-gray-700">Ingreso</span>
               </label>
               <label className="flex items-center">
@@ -154,28 +184,29 @@ export default function StockMovementModal({ material, onClose }) {
 
           {(movementType === "Egreso" || movementType === "Cambio de Requerimiento") && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Taller *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Taller *
+              </label>
               <select
-                value={department}
                 onChange={handleTallerChange}
                 className="w-full px-3 py-2 border rounded-md"
                 required
               >
                 <option value="">Seleccionar…</option>
                 {talleres.map((t) => {
-                  const docente = teachers.find(d => d.Id_Taller === t.Id_Taller);
+                  const docente = teachers.find(d => Number(d.Id_Taller) === Number(t.Id_Taller));
                   const docenteNombre = docente ? ` - ${docente.Nombre} ${docente.Apellido}` : '';
-                  const anio = t.anio ? `${t.anio}° ` : '';
+                  const turnoText = t.Turno ? ` (${t.Turno})` : '';
                   return (
-                    <option key={t.Id_Taller} value={t.Denominacion}>
-                      {anio}{t.Denominacion}{docenteNombre}
+                    <option key={t.Id_Taller} value={t.Id_Taller}>
+                      {t.Denominacion}{turnoText}{docenteNombre}
                     </option>
                   );
                 })}
               </select>
             </div>
           )}
-
+          
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
             <textarea
