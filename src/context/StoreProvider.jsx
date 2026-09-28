@@ -6,10 +6,10 @@ export function StoreProvider({ children }) {
     const [materials, setMaterials]   = useState([]);
     const [teachers, setTeachers]     = useState([]);
     const [movements, setMovements]   = useState([]);
-    const [talleres, setTalleres] = useState([]);
-    const [rotations, setRotations] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [talleres, setTalleres]     = useState([]);
+    const [rotations, setRotations]   = useState([]);
+    const [loading, setLoading]       = useState(true);
+    const [error, setError]           = useState(null);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -44,17 +44,33 @@ export function StoreProvider({ children }) {
             setTeachers(teachersData);
             setTalleres(talleresData);
             setRotations(rotationsData);
-            const formattedMovements = reportesData.map(r => ({
-                id: r.id,
-                materialId: r.materialId,
-                materialName: r.material,
-                type: r.tipo,
-                quantity: r.cantidad,
-                department: r.departamento,
-                responsible: r.responsable,
-                observations: r.observacion,
-                date: new Date(r.fecha)
-            }));
+
+            /* se cambio como se busca el nombre del docente en reportes, ahora se busca por ID y coincidencia de texto. */
+            const formattedMovements = reportesData.map(r => {
+                const docId = r.id_docente || r.idDocente || r.responsable;
+
+                const teacher = teachersData.find(t => 
+                    t.Id_Docente === Number(docId) || 
+                    `${t.Nombre} ${t.Apellido}`.trim().toLowerCase() === String(docId).trim().toLowerCase()
+                );
+
+                const teacherName = teacher 
+                    ? `${teacher.Nombre} ${teacher.Apellido}` 
+                    : (r.responsable || "");
+
+                return {
+                    id: r.id,
+                    materialId: r.materialId,
+                    materialName: r.material,
+                    type: r.tipo,
+                    quantity: r.cantidad,
+                    department: r.departamento,
+                    responsible: teacherName, 
+                    observations: r.observacion,
+                    date: new Date(r.fecha)
+                };
+            });
+
             setMovements(formattedMovements);
         } catch (error) {
             setError(error);
@@ -75,27 +91,18 @@ export function StoreProvider({ children }) {
         return { total, adequate, low, critical };
     }, [materials]);
 
-    // acciones
+    // Acciones
     const addMaterial = async (name, quantity) => {
         const newMaterial = { Nombre_Descripcion: name, StockActual: Number(quantity) };
         const response = await fetch('/api/materiales', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(newMaterial),
         });
-        if (!response.ok) {
-            throw new Error('Failed to add material');
-        }
-        await fetchData(); // Refetch
+        if (!response.ok) throw new Error('Failed to add material');
+        await fetchData();
     };
 
-    /*const updateMaterial = (id, patch) => {
-        // This is a client-side only update, for quick UI feedback.
-        // A proper implementation would have a backend endpoint and refetch.
-        setMaterials(prev => prev.map(m => m.Id_Material === id ? { ...m, ...patch } : m));
-    };*/
     const updateMaterial = async (id, patch) => {
         const response = await fetch(`/api/materiales/${id}`, {
             method: 'PUT',
@@ -104,39 +111,27 @@ export function StoreProvider({ children }) {
                 Nombre_Descripcion: patch.name,
                 StockActual: patch.quantity
             }),
-    });
+        });
 
-        
-    if (!response.ok) {
-        throw new Error('Failed to update material');
-    }
-    await fetchData(); // Refresca desde la base de datos
-};
+        if (!response.ok) throw new Error('Failed to update material');
+        await fetchData();
+    };
 
     const removeMaterial = async (id) => {
-        const response = await fetch(`/api/materiales/${id}`, {
-            method: 'DELETE',
-        });
-        if (!response.ok) {
-            throw new Error('Failed to delete material');
-        }
-        await fetchData(); // Refetch
+        const response = await fetch(`/api/materiales/${id}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to delete material');
+        await fetchData();
     };
 
     const addTeacher = async (teacher) => {
         const response = await fetch('/api/docentes', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(teacher),
         });
-        if (!response.ok) {
-            throw new Error('Failed to add teacher');
-        }
+        if (!response.ok) throw new Error('Failed to add teacher');
 
         const createdTeacher = await response.json();
-        // Aseguramos que el estado se actualice correctamente
         setTeachers(prev => [...prev, createdTeacher].sort((a, b) => a.Nombre.localeCompare(b.Nombre)));
     };
 
@@ -147,41 +142,30 @@ export function StoreProvider({ children }) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(taller)
             });
-            if (!response.ok) {
-                throw new Error('Error al registrar el taller');
-            }
+            if (!response.ok) throw new Error('Error al registrar el taller');
             const nuevoTaller = await response.json();
             setTalleres(prev => [...prev, nuevoTaller].sort((a, b) => a.Denominacion.localeCompare(b.Denominacion)));
         } catch (err) {
             console.error("Error al agregar taller:", err);
-            // Lanzamos el error para que el formulario pueda capturarlo y mostrar un mensaje
             throw err;
         }
-        await fetchData(); // Refetch
+        await fetchData();
     };
 
     const updateTeacher = async (id, patch) => {
         const response = await fetch(`/api/docentes/${id}`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(patch),
         });
-        if (!response.ok) {
-            throw new Error('Failed to update teacher');
-        }
-        await fetchData(); // Refetch
+        if (!response.ok) throw new Error('Failed to update teacher');
+        await fetchData();
     };
 
     const removeTeacher = async (id) => {
-        const response = await fetch(`/api/docentes/${id}`, {
-            method: 'DELETE',
-        });
-        if (!response.ok) {
-            throw new Error('Failed to delete teacher');
-        }
-        await fetchData(); // Refetch
+        const response = await fetch(`/api/docentes/${id}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to delete teacher');
+        await fetchData();
     };
 
     const updateTaller = async (id, patch) => {
@@ -200,24 +184,18 @@ export function StoreProvider({ children }) {
     
     const removeTaller = async (id) => {
         try {
-            const response = await fetch(`/api/talleres/${id}`, {
-                method: 'DELETE',
-            });
+            const response = await fetch(`/api/talleres/${id}`, { method: 'DELETE' });
             if (!response.ok) {
-                // Intentamos leer el error como JSON, si falla, damos un mensaje genérico.
                 let errorMessage = 'No se pudo eliminar el taller.';
                 try {
                     const errorData = await response.json();
                     errorMessage = errorData.message || errorMessage;
-                } catch (e) {
-                    // La respuesta no era JSON, probablemente HTML de error. No hacemos nada y usamos el mensaje por defecto.
-                }
+                } catch (e) {}
                 throw new Error(errorMessage);
             }
             setTalleres(prev => prev.filter(t => t.Id_Taller !== id));
         } catch (err) {
             console.error("Error al eliminar taller:", err);
-            // Lanzamos el error para que el componente que lo llama pueda manejarlo
             throw err;
         }
     };
@@ -229,10 +207,8 @@ export function StoreProvider({ children }) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(rotation)
             });
-            if (!response.ok) {
-                throw new Error('Error al registrar la rotación');
-            }
-            await fetchData(); // Refetch all data
+            if (!response.ok) throw new Error('Error al registrar la rotación');
+            await fetchData();
         } catch (err) {
             console.error("Error al agregar rotación:", err);
             throw err;
@@ -249,25 +225,21 @@ export function StoreProvider({ children }) {
             const errorData = await response.json().catch(() => ({ message: 'No se pudo actualizar la rotación' }));
             throw new Error(errorData.message);
         }
-        await fetchData(); // Refetch
+        await fetchData();
     };
 
     const removeRotation = async (id) => {
         try {
-            const response = await fetch(`/api/rotaciones/${id}`, {
-                method: 'DELETE',
-            });
+            const response = await fetch(`/api/rotaciones/${id}`, { method: 'DELETE' });
             if (!response.ok) {
                 let errorMessage = 'No se pudo eliminar la rotación.';
                 try {
                     const errorData = await response.json();
                     errorMessage = errorData.message || errorMessage;
-                } catch (e) {
-                    // Ignore if response is not json
-                }
+                } catch (e) {}
                 throw new Error(errorMessage);
             }
-            await fetchData(); // Refetch
+            await fetchData();
         } catch (err) {
             console.error("Error al eliminar rotación:", err);
             throw err;
@@ -275,21 +247,18 @@ export function StoreProvider({ children }) {
     };
 
     const registerMovement = async ({ materialId, movementType, quantity, responsible, observations, department }) => {
-       console.log('registerMovement llamado:', { materialId, movementType, quantity, responsible, department });
-        // 1. Guardar estado original para un posible rollback
+        console.log('registerMovement llamado:', { materialId, movementType, quantity, responsible, department });
+        
         const originalMaterials = materials;
         const originalMovements = movements;
 
-        // 2. Realizar la actualización optimista en la UI
         quantity = Number(quantity);
         const materialIndex = materials.findIndex(m => m.Id_Material === materialId);
         if (materialIndex === -1) throw new Error("Material no encontrado");
         
         const materialToUpdate = materials[materialIndex];
 
-        // Validar stock para egresos
         if (movementType === "Egreso" && materialToUpdate.StockActual < quantity) {
-            // Lanzar un error que pueda ser capturado en la UI
             throw new Error("No hay suficiente stock para este egreso.");
         }
 
@@ -303,7 +272,7 @@ export function StoreProvider({ children }) {
         setMaterials(updatedMaterials);
 
         const newMovement = {
-            id: `optimistic-${Date.now()}`, // ID temporal
+            id: `optimistic-${Date.now()}`,
             materialId,
             materialName: materialToUpdate.Nombre_Descripcion ?? "",
             type: movementType,
@@ -315,18 +284,28 @@ export function StoreProvider({ children }) {
         };
         setMovements(prev => [newMovement, ...prev]);
 
-        // 3. Enviar la petición al backend
         try {
             let idTaller = null;
             let idDocente = null;
 
+            /* se cambio como se manda la información de taller en movimientos, ahora el nombre del taller o la combinación "denominacion - docente"*/
             if (department) {
-                const taller = talleres.find(t => t.Denominacion === department);
+                const taller = talleres.find(t => 
+                    t.Denominacion === department || 
+                    `${t.Denominacion} - ${t.Docente}` === department ||
+                    department.includes(t.Denominacion)
+                );
                 if (taller) idTaller = taller.Id_Taller;
             }
 
+            /* cambiamos que sea más flexible al ingresar/mostrar la información para evita que iddocente sea null */
             if (responsible) {
-                const teacher = teachers.find(t => `${t.Nombre} ${t.Apellido}` === responsible);
+                const teacher = teachers.find(t => {
+                    const fullName = `${t.Nombre} ${t.Apellido}`.trim().toLowerCase();
+                    const altFullName = `${t.Apellido} ${t.Nombre}`.trim().toLowerCase();
+                    const target = String(responsible).trim().toLowerCase();
+                    return fullName === target || altFullName === target || String(t.Id_Docente) === target;
+                });
                 if (teacher) idDocente = teacher.Id_Docente;
             }
             
@@ -338,9 +317,7 @@ export function StoreProvider({ children }) {
                 idDocente,
                 observations
             };
-console.log('responsible:', responsible);
-console.log('idDocente encontrado:', idDocente);
-console.log('body enviado:', JSON.stringify(body));
+
             const response = await fetch('/api/movimientos', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -348,69 +325,94 @@ console.log('body enviado:', JSON.stringify(body));
             });
         
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.mensaje || 'Error al registrar el movimiento');
             }
         
-            // 4. En caso de éxito, refrescar los datos desde el servidor para mantener la consistencia.
             await fetchData();
 
         } catch (error) {
-            // 5. Si falla la petición, revertir la actualización optimista
             console.error("Falló el registro del movimiento, revirtiendo:", error);
             setMaterials(originalMaterials);
             setMovements(originalMovements);
-            // Re-lanzar el error para que el componente que llama pueda manejarlo (ej. mostrar una notificación)
             throw error;
         }
     };
 
-    const updateMaterialRequirement = async ({ materialId, idTaller, newRequirement, observations, responsible }) => {
-    const originalMaterials = materials;
-    try {
-        const updatedMaterials = materials.map(m =>
-            m.Id_Material === materialId ? { ...m, Requerimiento: newRequirement } : m
-        );
-        setMaterials(updatedMaterials);
+    /* cambiamos los alias alternativos, el id de taller ahora se lee por id y Nombre y en requerimiento se eliminaron los signos (+-)*/
+    const updateMaterialRequirement = async (params) => {
+        // acepta nombres de formulario como con nombres de backend
+        const materialId = params.materialId;
+        const rawRequirement = params.newRequirement ?? params.quantity ?? params.requerimiento;
+        const targetDepartment = params.department ?? params.idTaller;
+        const responsible = params.responsible;
+        const observations = params.observations;
 
-        let idDocente = null;
-        if (responsible) {
-            const teacher = teachers.find(t => `${t.Nombre} ${t.Apellido}` === responsible);
-            if (teacher) idDocente = teacher.Id_Docente;
+        const originalMaterials = materials;
+
+        try {
+            // resolviendo id del taller sin caer en que no es un número
+            let resolvedIdTaller = null;
+            // cambiamos que la cuando se busca el taller compare la denominación y el Turno
+            if (targetDepartment) {
+                const taller = talleres.find(t => 
+                    t.Id_Taller === Number(targetDepartment) ||
+                    `${t.Denominacion} - ${t.Turno}`.toLowerCase() === String(targetDepartment).toLowerCase() ||
+                    `${t.Denominacion} (${t.Turno})`.toLowerCase() === String(targetDepartment).toLowerCase() ||
+                    t.Denominacion.toLowerCase() === String(targetDepartment).toLowerCase()
+                );
+                if (taller) resolvedIdTaller = taller.Id_Taller;
+            }
+
+            // resolviendo id del docente para que sea más flexible
+            let idDocente = null;
+            if (responsible) {
+                const teacher = teachers.find(t => {
+                    const fullName = `${t.Nombre} ${t.Apellido}`.trim().toLowerCase();
+                    const altFullName = `${t.Apellido} ${t.Nombre}`.trim().toLowerCase();
+                    const target = String(responsible).trim().toLowerCase();
+                    return fullName === target || altFullName === target || String(t.Id_Docente) === target;
+                });
+                if (teacher) idDocente = teacher.Id_Docente;
+            }
+
+            // se limpian los signos
+            const parsedRequirement = Number(String(rawRequirement || 0).replace('+', ''));
+
+            const body = {
+                materialId: Number(materialId),
+                idTaller: resolvedIdTaller,
+                newRequirement: parsedRequirement,
+                observations: observations || "",
+                idDocente: idDocente
+            };
+
+            console.log('Enviando a /api/movimientos/requerimiento:', body);
+
+            const response = await fetch('/api/movimientos/requerimiento', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.mensaje || 'Error interno del servidor al cambiar el requerimiento.');
+            }
+
+            await fetchData();
+
+        } catch (error) {
+            console.error("Falló la actualización del requerimiento, revirtiendo:", error);
+            setMaterials(originalMaterials);
+            throw error;
         }
-
-        const body = {
-            materialId: Number(materialId),
-            idTaller: Number(idTaller),
-            newRequirement: Number(newRequirement),
-            observations,
-            idDocente,
-        };
-
-        const response = await fetch('/api/movimientos/requerimiento', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.mensaje || 'Error al actualizar el requerimiento');
-        }
-
-        await fetchData();
-
-    } catch (error) {
-        console.error("Falló la actualización del requerimiento, revirtiendo:", error);
-        setMaterials(originalMaterials);
-        throw error;
-    }
-};
+    };
 
     const getTallerName = (id) => {
         const taller = talleres.find(t => t.Id_Taller === id);
         return taller ? taller.Denominacion : "";
-    }
+    };
 
     const value = {
         materials, teachers, movements, stats, loading, error, talleres, rotations,
