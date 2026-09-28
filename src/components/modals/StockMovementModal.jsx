@@ -44,6 +44,9 @@ export default function StockMovementModal({ material, onClose }) {
   };
   const onSubmit = async (e) => {
     e.preventDefault();
+
+    console.log('onSubmit llamado', { movementType, materialId, quantity, newRequirement, responsible, department });
+    
     try {
       if (movementType === 'Cambio de Requerimiento') {
           const selectedTaller = talleres.find(t => t.Denominacion === department);
@@ -55,23 +58,22 @@ export default function StockMovementModal({ material, onClose }) {
           await updateMaterialRequirement({
             materialId: Number(materialId),
             idTaller: selectedTaller.Id_Taller,
-            department: selectedTaller.Denominacion,
             newRequirement: Number(newRequirement),
             observations,
-            responsible, // envía el nombre del responsable
-        });
+            responsible,
+          });
           toast.success("Requerimiento actualizado correctamente");
       } else {
           const movementData = {
             materialId: Number(materialId),
             movementType,
-            quantity: Number(newRequirement || quantity),
+            quantity: Number(quantity), // <-- Ahora usa la cantidad correcta del input de Ingreso/Egreso
             observations,
           };
 
           if (movementType === "Egreso") {
             movementData.department = department;
-            movementData.responsible = responsible; // envía el nombre del responsable
+            movementData.responsible = responsible;
           }
           await registerMovement(movementData);
           toast.success("Movimiento registrado correctamente");
@@ -82,21 +84,44 @@ export default function StockMovementModal({ material, onClose }) {
     }
   };
 
+  const filteredTeachers = useMemo(() => {
+    if (!department) return teachers;
+    const selectedTaller = talleres.find((t) => t.Denominacion === department);
+    if (!selectedTaller) return [];
+    return teachers.filter((t) => t.Id_Taller === selectedTaller.Id_Taller);
+  }, [department, teachers, talleres]);
+
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
       <div className="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-gray-900">Registrar Movimiento</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+          <h3 className="text-lg font-medium text-gray-900">
+            Registrar Movimiento
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
-
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Material *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Material *
+            </label>
             <select
               value={materialId}
               onChange={(e) => setMaterialId(e.target.value)}
@@ -111,9 +136,10 @@ export default function StockMovementModal({ material, onClose }) {
               ))}
             </select>
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tipo *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Tipo *
+            </label>
             <div className="flex items-center space-x-4">
               <label className="flex items-center">
                 <input
@@ -124,7 +150,6 @@ export default function StockMovementModal({ material, onClose }) {
                   onChange={() => setMovementType("Ingreso")}
                   className="form-radio h-4 w-4 text-blue-600"
                 />
-                
                 <span className="ml-2 text-sm text-gray-700">Ingreso</span>
               </label>
               <label className="flex items-center">
@@ -151,45 +176,65 @@ export default function StockMovementModal({ material, onClose }) {
               </label>
             </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad / Ajuste *</label>
-            <input
-              type="number"
-              value={newRequirement}
-              onChange={(e) => setNewRequirement(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md"
-              required
-            />
-          </div>
-
-          {(movementType === "Egreso" || movementType === "Cambio de Requerimiento") && (
+          
+          {(movementType === "Ingreso" || movementType === "Egreso") && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Taller *
+                Cantidad *
+              </label>
+              <input
+                type="number"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md"
+                required
+              />
+            </div>
+          )}
+
+          {movementType === "Cambio de Requerimiento" && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Ajuste de Requerimiento (+ para agregar, - para quitar)
               </label>
               <select //agregamos el manejador
                 onChange={handleTallerChange}
                 className="w-full px-3 py-2 border rounded-md"
                 required
-              >
-                <option value="">Seleccionar…</option>
-                {talleres.map((t) => {
-                  const docente = teachers.find(d => Number(d.Id_Taller) === Number(t.Id_Taller));
-                  const docenteNombre = docente ? ` - ${docente.Nombre} ${docente.Apellido}` : '';
-                  const turnoText = t.Turno ? ` (${t.Turno})` : '';
-                  return (
-                    <option key={t.Id_Taller} value={t.Id_Taller}>
-                      {t.Denominacion}{turnoText}{docenteNombre}
-                    </option>
-                  );
-                })}
-              </select>
+              />
             </div>
           )}
 
+         {(movementType === "Egreso" || movementType === "Cambio de Requerimiento") && (
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Taller *
+                </label>
+                <select
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md"
+                    required
+                >
+                    <option value="">Seleccionar…</option>
+                    {talleres.map((t) => {
+                        const docente = teachers.find(d => d.Id_Taller === t.Id_Taller);
+                        const docenteNombre = docente ? ` - ${docente.Nombre} ${docente.Apellido}` : '';
+                        const anio = t.anio ? `${t.anio}° ` : '';
+                        return (
+                            <option key={t.Id_Taller} value={t.Denominacion}>
+                                {anio}{t.Denominacion}{docenteNombre}
+                            </option>
+                        );
+                    })}
+                </select>
+            </div>
+        )}
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Observaciones
+            </label>
             <textarea
               rows={3}
               value={observations}
@@ -197,7 +242,6 @@ export default function StockMovementModal({ material, onClose }) {
               className="w-full px-3 py-2 border rounded-md"
             />
           </div>
-
           <div className="flex space-x-3 pt-2">
             <button
               type="button"
