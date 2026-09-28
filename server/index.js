@@ -15,7 +15,7 @@ const port = 3001;
 const dbConfig = {
     host: 'localhost',
     user: 'root', 
-    password: '123', 
+    password: '', 
     database: 'gestion_paniol',
     waitForConnections: true,
     connectionLimit: 10,
