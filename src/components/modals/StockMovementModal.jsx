@@ -29,7 +29,7 @@ export default function StockMovementModal({ material, onClose }) {
       // guardar denominación (o combinación con turno/año si lo usas en UI)
       setDepartment(selectedTaller.Denominacion);
 
-      // 2. buscar el docente vinculado convirtiendo ambos IDs a número
+      // buscar el docente vinculado convirtiendo ambos IDs a número
       const docente = teachers.find(d => Number(d.Id_Taller) === Number(selectedTaller.Id_Taller));
       
       if (docente) {
@@ -168,7 +168,7 @@ export default function StockMovementModal({ material, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Taller *
               </label>
-              <select
+              <select //agregamos el manejador
                 onChange={handleTallerChange}
                 className="w-full px-3 py-2 border rounded-md"
                 required

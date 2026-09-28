@@ -8,11 +8,11 @@ export default function TeacherForm() {
     const [name, setName] = useState("");
     const [apellido, setApellido] = useState("");
     const [email, setEmail] = useState("");
-    const [idTaller, setIdTaller] = useState(""); // Change to idTaller, initialized as empty string
+    const [idTaller, setIdTaller] = useState("");
 
     useEffect(() => {
         if (talleres.length > 0 && idTaller === "") {
-            setIdTaller(talleres[0].Id_Taller); // Select the first taller by default
+            setIdTaller(talleres[0].Id_Taller);
         }
     }, [talleres, idTaller]);
 
@@ -23,6 +23,7 @@ export default function TeacherForm() {
             setName("");
             setApellido("");
             setEmail("");
+            if (talleres.length > 0) setIdTaller(talleres[0].Id_Taller);
             toast.success("Profesor registrado exitosamente");
         } catch (err) {
             toast.error(err.message || "Error al registrar profesor");
@@ -49,22 +50,33 @@ export default function TeacherForm() {
                         <label className="block text-sm font-medium text-gray-700">Email</label>
                         <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm px-3 py-2 border"/>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Taller *</label>
-                        <select value={idTaller} onChange={e => setIdTaller(e.target.value)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm px-3 py-2 border" required>
-                            <option value="">Seleccione un Taller</option>
-                            {talleres.map(t => (
-                                <option key={t.Id_Taller} value={t.Id_Taller}>
-                                   {t.anio ? `${t.anio}° - ` : ''}{t.Denominacion}
-                                </option>
-                            ))}
+                    <div className="sm:col-span-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Taller y Turno *
+                        </label>
+                        <select
+                            value={idTaller}
+                            onChange={(e) => setIdTaller(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white"
+                            required
+                        >
+                            <option value="">Seleccionar Taller…</option>
+                            {talleres.map((t) => {
+                                const anioText = t.anio ? `${t.anio}° ` : '';
+                                const turnoText = t.Turno ? ` (${t.Turno})` : '';
+                                return (
+                                    <option key={t.Id_Taller} value={t.Id_Taller}>
+                                        {anioText}{t.Denominacion}{turnoText}
+                                    </option>
+                                );
+                            })}
                         </select>
                     </div>
-                    <div className="sm:col-span-3 flex items-end">
-                        <label className="block text-sm font-medium text-gray-700">* Campos obligatorios</label>
+                    <div className="sm:col-span-3">
+                        <label className="block text-sm font-medium text-gray-500">* Campos obligatorios</label>
                     </div>
-                    <div className="sm:col-span-3 flex items-end">
-                        <button type="submit" className="w-full inline-flex justify-center py-2 px-4 rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                    <div className="sm:col-span-3">
+                        <button type="submit" className="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none">
                             Registrar Profesor
                         </button>
                     </div>
