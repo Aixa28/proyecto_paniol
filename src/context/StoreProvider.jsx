@@ -351,14 +351,15 @@ export function StoreProvider({ children }) {
         const originalMaterials = materials;
 
         try {
-            // resolviendo id del taller sin caer en NaN
+            // resolviendo id del taller sin caer en que no es un número
             let resolvedIdTaller = null;
+            // cambiamos que la cuando se busca el taller compare la denominación y el Turno
             if (targetDepartment) {
                 const taller = talleres.find(t => 
                     t.Id_Taller === Number(targetDepartment) ||
-                    t.Denominacion === targetDepartment || 
-                    `${t.Denominacion} - ${t.Docente}` === targetDepartment ||
-                    String(targetDepartment).includes(t.Denominacion)
+                    `${t.Denominacion} - ${t.Turno}`.toLowerCase() === String(targetDepartment).toLowerCase() ||
+                    `${t.Denominacion} (${t.Turno})`.toLowerCase() === String(targetDepartment).toLowerCase() ||
+                    t.Denominacion.toLowerCase() === String(targetDepartment).toLowerCase()
                 );
                 if (taller) resolvedIdTaller = taller.Id_Taller;
             }

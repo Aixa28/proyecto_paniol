@@ -387,31 +387,33 @@ app.delete('/api/rotaciones/:id', async (req, res) => {
 // ----------------------------------------------------
 // RUTA DE REPORTES
 // ----------------------------------------------------
+// cambiamos que se muestre la denominación junto con el turno para diferenciarlos claramente
 app.get('/api/reportes', async (req, res) => {
-  const query = `
-    SELECT
-        mov.Id_Movimiento as id,
-        mov.Id_Material as materialId,
-        m.Nombre_Descripcion AS material,
-        mov.Tipo AS tipo,
-        mov.Cantidad AS cantidad,
-        t.Denominacion AS departamento,
-        CONCAT(d.Nombre, ' ', d.Apellido) AS responsable,
-        mov.Observacion AS observacion,
-        mov.Fecha AS fecha
-    FROM movimiento mov
-    JOIN material m ON mov.Id_Material = m.Id_Material
-    LEFT JOIN taller t ON mov.Id_Taller = t.Id_Taller
-    LEFT JOIN docente d ON mov.Id_Docente = d.Id_Docente
-    ORDER BY mov.Fecha DESC
-  `;
-  try {
-    const [results] = await pool.query(query);
-    res.json(results);
-  } catch (err) {
-    console.error('Error al obtener reportes:', err);
-    res.status(500).send('Error al obtener los reportes de la base de datos');
-  }
+    const query = `
+        SELECT 
+            mov.Id_Movimiento AS id,
+            mov.Id_Material AS materialId,
+            m.Nombre_Descripcion AS material,
+            mov.Tipo AS tipo,
+            mov.Cantidad AS cantidad,
+            CONCAT(t.Denominacion, ' (', t.Turno, ')') AS departamento,
+            COALESCE(CONCAT(d.Nombre, ' ', d.Apellido), '') AS responsable,
+            mov.Observacion AS observacion,
+            mov.Fecha AS fecha
+        FROM movimiento mov
+        LEFT JOIN material m ON mov.Id_Material = m.Id_Material
+        LEFT JOIN taller t ON mov.Id_Taller = t.Id_Taller
+        LEFT JOIN docente d ON mov.Id_Docente = d.Id_Docente
+        ORDER BY mov.Fecha DESC
+    `;
+
+    try {
+        const [results] = await pool.query(query);
+        res.json(results);
+    } catch (err) {
+        console.error('Error al obtener reportes:', err);
+        res.status(500).send('Error al obtener los reportes de la base de datos');
+    }
 });
 
 // ----------------------------------------------------
@@ -489,21 +491,54 @@ app.post('/api/movimientos', async (req, res) => {
 // ----------------------------------------------------
 // RUTA PARA CAMBIO DE REQUERIMIENTO
 // ----------------------------------------------------
+// En tu backend (Node.js)
 app.post('/api/movimientos/requerimiento', async (req, res) => {
-    const { materialId, idTaller, newRequirement, observations, idDocente } = req.body;
+    // Usamos 'let' para idDocente para permitir su reasignación si viene nulo
+    let { materialId, idTaller, newRequirement, observations, idDocente } = req.body;
     const connection = await pool.getConnection();
 
     try {
         await connection.beginTransaction();
 
-        // 1. Buscar la rotación activa
-        const [rotations] = await connection.query(
+        // 0. Si idDocente viene nulo/falsy pero tenemos idTaller, lo buscamos en la base de datos
+        if (!idDocente && idTaller) {
+            // Buscamos en la tabla docente por el Id_Taller asignado
+            const [docenteResult] = await connection.query(
+                'SELECT Id_Docente FROM docente WHERE Id_Taller = ? LIMIT 1',
+                [idTaller]
+            );
+
+            if (docenteResult.length > 0) {
+                idDocente = docenteResult[0].Id_Docente;
+            } else {
+                // Si la relación está en la tabla taller
+                const [tallerResult] = await connection.query(
+                    'SELECT Id_Docente FROM taller WHERE Id_Taller = ? LIMIT 1',
+                    [idTaller]
+                );
+                if (tallerResult.length > 0 && tallerResult[0].Id_Docente) {
+                    idDocente = tallerResult[0].Id_Docente;
+                }
+            }
+        }
+
+        console.log("Datos recibidos en backend:", { materialId, idTaller, newRequirement, idDocente });
+
+        // 1. Buscar la rotación activa (o la más reciente como fallback)
+        let [rotations] = await connection.query(
             'SELECT Id_Rotacion FROM rotacion WHERE CURDATE() BETWEEN Inicio AND Final LIMIT 1'
         );
 
         if (rotations.length === 0) {
-            throw new Error('No hay una rotación activa en este momento.');
+            [rotations] = await connection.query(
+                'SELECT Id_Rotacion FROM rotacion ORDER BY Final DESC LIMIT 1'
+            );
         }
+
+        if (rotations.length === 0) {
+            throw new Error('No hay una rotación registrada en la base de datos.');
+        }
+
         const idRotacion = rotations[0].Id_Rotacion;
 
         // 2. Obtener el requerimiento actual para calcular la diferencia
@@ -516,17 +551,21 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
         const currentRequirement = currentRequirementResult.length > 0 ? currentRequirementResult[0].Requerimiento : 0;
         const quantityChange = newRequirement - currentRequirement;
 
-        // 3. Insertar en movimientos para auditoría
+        // 3. Insertar en movimientos para auditoría (ya con idDocente resuelto)
         const insertMovementQuery = `
             INSERT INTO movimiento (Id_Material, Tipo, Cantidad, Id_Taller, Id_Docente, Observacion, Fecha)
             VALUES (?, 'Cambio de Requerimiento', ?, ?, ?, ?, NOW())
         `;
-        const [movementResult] = await connection.query(insertMovementQuery, [materialId, newRequirement, idTaller, idDocente || null, observations]);
+        const [movementResult] = await connection.query(insertMovementQuery, [
+            materialId, 
+            newRequirement, 
+            idTaller, 
+            idDocente || null, 
+            observations
+        ]);
         const newMovementId = movementResult.insertId;
 
-
-
-        // 4. Actualizar el requerimiento sumando/restando el ajuste
+        // 4. Actualizar el requerimiento en la tabla intermedia
         const updateRequirementQuery = `
             INSERT INTO materialxrotacionxtaller (Id_Taller, Id_Rotacion, Id_Material, Fecha, Requerimiento)
             VALUES (?, ?, ?, CURDATE(), ?)
@@ -547,7 +586,10 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
     } catch (error) {
         await connection.rollback();
         console.error('Error al cambiar el requerimiento:', error);
-        res.status(500).json({ mensaje: 'Error interno del servidor al cambiar el requerimiento.' });
+        res.status(500).json({ 
+            mensaje: 'Error interno del servidor al cambiar el requerimiento.', 
+            detalle: error.message 
+        });
     } finally {
         connection.release();
     }
