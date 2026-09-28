@@ -10,12 +10,16 @@ const [q, setQ] = useState("");
 const [edit, setEdit] = useState(null);
 const [del, setDel] = useState(null);
 
-// Función para obtener el nombre del taller de un profesor
+// Función para obtener el nombre del taller y el turno de un profesor
 const getTeacherTallerName = (teacher) => {
     if (!teacher.Id_Taller) return 'Sin taller asignado';
-    const associatedTaller = talleres.find(taller => taller.Id_Taller === teacher.Id_Taller);
+    const associatedTaller = talleres.find(taller => Number(taller.Id_Taller) === Number(teacher.Id_Taller));
     if (!associatedTaller) return 'Sin taller asignado';
-    return `${associatedTaller.anio ? ` ${associatedTaller.anio}° - ` : ''}${associatedTaller.Denominacion}`;
+    
+    const anioText = associatedTaller.anio ? `${associatedTaller.anio}° - ` : '';
+    const turnoText = associatedTaller.Turno ? ` (${associatedTaller.Turno})` : '';
+    
+    return `${anioText}${associatedTaller.Denominacion}${turnoText}`;
 };
 
 const rows = teachers

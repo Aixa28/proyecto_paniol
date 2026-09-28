@@ -12,6 +12,36 @@ export default function StockMovementModal({ material, onClose }) {
   const [responsible, setResponsible] = useState("");
   const [observations, setObservations] = useState("");
   
+  // cambiando el manejador para que actualize el taller y docente al mismo tiempo
+  const handleTallerChange = (e) => {
+    const selectedId = Number(e.target.value);
+    
+    if (!selectedId) {
+      setDepartment("");
+      setResponsible("");
+      return;
+    }
+
+    // busca el taller exactamente por su id
+    const selectedTaller = talleres.find(t => Number(t.Id_Taller) === selectedId);
+    
+    if (selectedTaller) {
+      // guardar denominación (o combinación con turno/año si lo usas en UI)
+      setDepartment(selectedTaller.Denominacion);
+
+      // buscar el docente vinculado convirtiendo ambos IDs a número
+      const docente = teachers.find(d => Number(d.Id_Taller) === Number(selectedTaller.Id_Taller));
+      
+      if (docente) {
+        setResponsible(`${docente.Nombre} ${docente.Apellido}`);
+      } else {
+        setResponsible("");
+      }
+    } else {
+      setDepartment("");
+      setResponsible("");
+    }
+  };
   const onSubmit = async (e) => {
     e.preventDefault();
 
@@ -167,10 +197,8 @@ export default function StockMovementModal({ material, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Ajuste de Requerimiento (+ para agregar, - para quitar)
               </label>
-              <input
-                type="number"
-                value={newRequirement}
-                onChange={(e) => setNewRequirement(e.target.value)}
+              <select //agregamos el manejador
+                onChange={handleTallerChange}
                 className="w-full px-3 py-2 border rounded-md"
                 required
               />
