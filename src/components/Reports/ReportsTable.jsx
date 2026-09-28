@@ -8,6 +8,7 @@ if (!rows.length) {
     );
 }
 
+
 const getTypeStyle = (type) => {
     switch (type) {
         case "Ingreso":
@@ -76,7 +77,7 @@ return (
                 </td>
 
                 <td className="px-6 py-4 whitespace-nowrap text-center">
-                <div className="text-sm text-gray-900">{m.responsible}</div>
+                    <div className="text-sm text-gray-900">{m.responsible || "-"}</div>
                 </td>
 
                 <td className="px-6 py-4 text-sm text-gray-700 break-words max-w-xs">

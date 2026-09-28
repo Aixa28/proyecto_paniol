@@ -500,9 +500,9 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
     try {
         await connection.beginTransaction();
 
-        // 0. Si idDocente viene nulo/falsy pero tenemos idTaller, lo buscamos en la base de datos
+        // si el id del Docente viene nulo7falso pero tenemos el id de Taller, lo buscamos en la base de datos
         if (!idDocente && idTaller) {
-            // Buscamos en la tabla docente por el Id_Taller asignado
+            // buscamos en la tabla docente por el id del taller asignado
             const [docenteResult] = await connection.query(
                 'SELECT Id_Docente FROM docente WHERE Id_Taller = ? LIMIT 1',
                 [idTaller]
@@ -511,7 +511,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
             if (docenteResult.length > 0) {
                 idDocente = docenteResult[0].Id_Docente;
             } else {
-                // Si la relación está en la tabla taller
+                // si la relación está en la tabla taller
                 const [tallerResult] = await connection.query(
                     'SELECT Id_Docente FROM taller WHERE Id_Taller = ? LIMIT 1',
                     [idTaller]
@@ -524,7 +524,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
 
         console.log("Datos recibidos en backend:", { materialId, idTaller, newRequirement, idDocente });
 
-        // 1. Buscar la rotación activa (o la más reciente como fallback)
+        // bscar la rotación activa (o la más reciente como fallback)
         let [rotations] = await connection.query(
             'SELECT Id_Rotacion FROM rotacion WHERE CURDATE() BETWEEN Inicio AND Final LIMIT 1'
         );
@@ -541,7 +541,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
 
         const idRotacion = rotations[0].Id_Rotacion;
 
-        // 2. Obtener el requerimiento actual para calcular la diferencia
+        // obtener el requerimiento actual para calcular la diferencia
         const [currentRequirementResult] = await connection.query(
             `SELECT Requerimiento FROM materialxrotacionxtaller 
              WHERE Id_Material = ? AND Id_Taller = ? AND Id_Rotacion = ?`,
@@ -551,7 +551,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
         const currentRequirement = currentRequirementResult.length > 0 ? currentRequirementResult[0].Requerimiento : 0;
         const quantityChange = newRequirement - currentRequirement;
 
-        // 3. Insertar en movimientos para auditoría (ya con idDocente resuelto)
+        // insertar en movimientos para auditoría (ya con idDocente resuelto)
         const insertMovementQuery = `
             INSERT INTO movimiento (Id_Material, Tipo, Cantidad, Id_Taller, Id_Docente, Observacion, Fecha)
             VALUES (?, 'Cambio de Requerimiento', ?, ?, ?, ?, NOW())
@@ -565,7 +565,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
         ]);
         const newMovementId = movementResult.insertId;
 
-        // 4. Actualizar el requerimiento en la tabla intermedia
+        // actualizar el requerimiento en la tabla intermedia
         const updateRequirementQuery = `
             INSERT INTO materialxrotacionxtaller (Id_Taller, Id_Rotacion, Id_Material, Fecha, Requerimiento)
             VALUES (?, ?, ?, CURDATE(), ?)
@@ -575,7 +575,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
         `;
         await connection.query(updateRequirementQuery, [idTaller, idRotacion, materialId, newRequirement]);
         
-        // 5. Confirmar la transacción
+        // confirmar la transacción
         await connection.commit();
 
         res.status(201).json({
