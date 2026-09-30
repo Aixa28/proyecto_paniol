@@ -108,13 +108,12 @@ app.get('/api/materiales', async (req, res) => {
   }
 });
 
-// Ruta para crear un nuevo material (o sumar stock si ya existe por nombre)
+// Ruta para crear un nuevo material (o sumar stock si ya existe)
 app.post('/api/materiales', async (req, res) => {
   let { Nombre_Descripcion, StockActual } = req.body;
   
-  // Limpiamos espacios sobrantes al inicio y final
   Nombre_Descripcion = Nombre_Descripcion ? Nombre_Descripcion.trim() : '';
-  
+
   const query = `
     INSERT INTO material (Nombre_Descripcion, StockActual) 
     VALUES (?, ?) 
@@ -124,10 +123,12 @@ app.post('/api/materiales', async (req, res) => {
   try {
     const [result] = await pool.query(query, [Nombre_Descripcion, StockActual, StockActual]);
     
-    res.status(201).json({ 
-      success: true, 
-      message: 'Material registrado o actualizado correctamente' 
-    });
+    // Si ya existía, buscamos el material actualizado para devolverlo completo al frontend
+    const [rows] = await pool.query('SELECT * FROM material WHERE Nombre_Descripcion = ?', [Nombre_Descripcion]);
+    const materialGuardado = rows[0];
+
+    // Devolvemos el objeto completo que el frontend espera recibir
+    res.status(201).json(materialGuardado);
   } catch (err) {
     console.error('Error al crear o actualizar material:', err);
     res.status(500).send('Error al guardar el material en la base de datos');
