@@ -62,11 +62,11 @@ export default function TeacherForm() {
                         >
                             <option value="">Seleccionar Taller…</option>
                             {talleres.map((t) => {
-                                const anioText = t.anio ? `${t.anio}° ` : '';
-                                const turnoText = t.Turno ? ` (${t.Turno})` : '';
+                                const text = `${t.Denominacion} (${t.Turno || ''})`;
                                 return (
                                     <option key={t.Id_Taller} value={t.Id_Taller}>
-                                        {anioText}{t.Denominacion}{turnoText}
+                                        {/* Reemplazamos maniana por Mañana */}
+                                        {text.replace(/maniana|manana/gi, 'Mañana')}
                                     </option>
                                 );
                             })}
