@@ -108,16 +108,29 @@ app.get('/api/materiales', async (req, res) => {
   }
 });
 
-// Ruta para crear un nuevo material
+// Ruta para crear un nuevo material (o sumar stock si ya existe)
 app.post('/api/materiales', async (req, res) => {
-  const { Nombre_Descripcion, StockActual } = req.body;
-  const query = 'INSERT INTO material (Nombre_Descripcion, StockActual) VALUES (?, ?)';
+  let { Nombre_Descripcion, StockActual } = req.body;
+  
+  Nombre_Descripcion = Nombre_Descripcion ? Nombre_Descripcion.trim() : '';
+
+  const query = `
+    INSERT INTO material (Nombre_Descripcion, StockActual) 
+    VALUES (?, ?) 
+    ON DUPLICATE KEY UPDATE StockActual = StockActual + ?
+  `;
+  
   try {
-    const [result] = await pool.query(query, [Nombre_Descripcion, StockActual]);
-    const newMaterial = { Id_Material: result.insertId, Nombre_Descripcion, StockActual };
-    res.status(201).json(newMaterial);
+    const [result] = await pool.query(query, [Nombre_Descripcion, StockActual, StockActual]);
+    
+    // Si ya existía, buscamos el material actualizado para devolverlo completo al frontend
+    const [rows] = await pool.query('SELECT * FROM material WHERE Nombre_Descripcion = ?', [Nombre_Descripcion]);
+    const materialGuardado = rows[0];
+
+    // Devolvemos el objeto completo que el frontend espera recibir
+    res.status(201).json(materialGuardado);
   } catch (err) {
-    console.error('Error al crear material:', err);
+    console.error('Error al crear o actualizar material:', err);
     res.status(500).send('Error al guardar el material en la base de datos');
   }
 });
