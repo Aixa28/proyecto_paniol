@@ -15,13 +15,14 @@ export default function TalleresTable() {
         const teacher = teachers.find(t => t.Id_Taller === idTaller);
         return teacher ? `${teacher.Nombre} ${teacher.Apellido}` : 'Sin asignar';
     };
-
+    //Cambiando para que me devuelva mañana en vez de maniana
     const displayTurno = (rawTurno) => {
-        if (rawTurno === 'Maniana') {
-            return 'Mañana';
-        }
-        return rawTurno;
-    };
+    if (!rawTurno) return '';
+    if (rawTurno.toLowerCase() === 'maniana' || rawTurno.toLowerCase() === 'manana') {
+        return 'Mañana';
+    }
+    return rawTurno;
+};
 
     const rows = talleres
         .filter(t =>
