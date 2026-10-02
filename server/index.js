@@ -108,16 +108,29 @@ app.get('/api/materiales', async (req, res) => {
   }
 });
 
-// Ruta para crear un nuevo material
+// Ruta para crear un nuevo material (o sumar stock si ya existe)
 app.post('/api/materiales', async (req, res) => {
-  const { Nombre_Descripcion, StockActual } = req.body;
-  const query = 'INSERT INTO material (Nombre_Descripcion, StockActual) VALUES (?, ?)';
+  let { Nombre_Descripcion, StockActual } = req.body;
+  
+  Nombre_Descripcion = Nombre_Descripcion ? Nombre_Descripcion.trim() : '';
+
+  const query = `
+    INSERT INTO material (Nombre_Descripcion, StockActual) 
+    VALUES (?, ?) 
+    ON DUPLICATE KEY UPDATE StockActual = StockActual + ?
+  `;
+  
   try {
-    const [result] = await pool.query(query, [Nombre_Descripcion, StockActual]);
-    const newMaterial = { Id_Material: result.insertId, Nombre_Descripcion, StockActual };
-    res.status(201).json(newMaterial);
+    const [result] = await pool.query(query, [Nombre_Descripcion, StockActual, StockActual]);
+    
+    // Si ya existía, buscamos el material actualizado para devolverlo completo al frontend
+    const [rows] = await pool.query('SELECT * FROM material WHERE Nombre_Descripcion = ?', [Nombre_Descripcion]);
+    const materialGuardado = rows[0];
+
+    // Devolvemos el objeto completo que el frontend espera recibir
+    res.status(201).json(materialGuardado);
   } catch (err) {
-    console.error('Error al crear material:', err);
+    console.error('Error al crear o actualizar material:', err);
     res.status(500).send('Error al guardar el material en la base de datos');
   }
 });
@@ -609,7 +622,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
     }
 });
 
-// Requerimiento total de todos los talleres por material (rotación activa)
+// Requerimiento total de todos los talleres por material (rotación activa y su fecha de fin)
 app.get('/api/inventario/resumen', async (req, res) => {
     const query = `
         SELECT 
@@ -618,6 +631,7 @@ app.get('/api/inventario/resumen', async (req, res) => {
             m.StockActual,
             COALESCE(SUM(mrt.Requerimiento), 0) AS Requerimiento,
             m.StockActual - COALESCE(SUM(mrt.Requerimiento), 0) AS Balance_Numerico,
+            r.Final AS Fecha_Fin_Rotacion, /* NUEVA COLUMNA: Trae la fecha final de la rotación activa */
             CASE
                 WHEN COALESCE(SUM(mrt.Requerimiento), 0) = 0 THEN 'DISPONIBLE'
                 WHEN m.StockActual <= 0 THEN 'FALTANTE'
@@ -629,7 +643,7 @@ app.get('/api/inventario/resumen', async (req, res) => {
         LEFT JOIN materialxrotacionxtaller mrt ON m.Id_Material = mrt.Id_Material
         LEFT JOIN rotacion r ON mrt.Id_Rotacion = r.Id_Rotacion
             AND CURDATE() BETWEEN r.Inicio AND r.Final
-        GROUP BY m.Id_Material, m.Nombre_Descripcion, m.StockActual
+        GROUP BY m.Id_Material, m.Nombre_Descripcion, m.StockActual, r.Final
         ORDER BY m.Nombre_Descripcion
     `;
 
