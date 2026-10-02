@@ -644,19 +644,18 @@ app.get('/api/inventario/resumen', async (req, res) => {
             m.StockActual,
             COALESCE(SUM(mrt.Requerimiento), 0) AS Requerimiento,
             m.StockActual - COALESCE(SUM(mrt.Requerimiento), 0) AS Balance_Numerico,
-            r.Final AS Fecha_Fin_Rotacion, /* NUEVA COLUMNA: Trae la fecha final de la rotación activa */
-            CASE
-                WHEN COALESCE(SUM(mrt.Requerimiento), 0) = 0 THEN 'DISPONIBLE'
-                WHEN m.StockActual <= 0 THEN 'FALTANTE'
-                WHEN m.StockActual < SUM(mrt.Requerimiento) THEN 'FALTANTE'
-                WHEN (m.StockActual - SUM(mrt.Requerimiento)) <= 2 THEN 'LIMITADO'
-                ELSE 'DISPONIBLE'
-            END AS Estado
+            'DISPONIBLE' AS Estado,
+            (
+                SELECT DATE_FORMAT(r_prox.Inicio, '%d/%m/%Y')
+                FROM materialxrotacionxtaller mrt_prox
+                JOIN rotacion r_prox ON mrt_prox.Id_Rotacion = r_prox.Id_Rotacion
+                WHERE mrt_prox.Id_Material = m.Id_Material
+                ORDER BY r_prox.Inicio ASC
+                LIMIT 1
+            ) AS Proxima_Rotacion
         FROM material m
         LEFT JOIN materialxrotacionxtaller mrt ON m.Id_Material = mrt.Id_Material
-        LEFT JOIN rotacion r ON mrt.Id_Rotacion = r.Id_Rotacion
-            AND CURDATE() BETWEEN r.Inicio AND r.Final
-        GROUP BY m.Id_Material, m.Nombre_Descripcion, m.StockActual, r.Final
+        GROUP BY m.Id_Material, m.Nombre_Descripcion, m.StockActual
         ORDER BY m.Nombre_Descripcion
     `;
 
