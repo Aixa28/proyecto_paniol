@@ -8,8 +8,8 @@ export default function TeachersTable() {
   const [q, setQ] = useState("");
   const [edit, setEdit] = useState(null);
   const [del, setDel] = useState(null);
-
-  // Función para obtener el año, nombre del taller y turno de un profesor.
+//merge
+  //función para obtener el año, nombre del taller y turno de un profesor
   const getTeacherTallerName = (teacher) => {
     if (!teacher.Id_Taller) return 'Sin taller asignado';
     const associatedTaller = talleres.find(taller => Number(taller.Id_Taller) === Number(teacher.Id_Taller));
