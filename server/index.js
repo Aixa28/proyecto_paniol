@@ -16,7 +16,7 @@ const dbConfig = {
     host: 'localhost',
     user: 'root', 
     password: '', 
-    database: 'gestion_paniol',
+    database: 'bdpaniol',
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
@@ -187,6 +187,7 @@ app.put('/api/materiales/:id', async (req, res) => {
 // ----------------------------------------------------
 
 // Ruta para obtener todos los talleres
+
 app.get('/api/talleres', async (req, res) => {
   try {
     const [results] = await pool.query('SELECT * FROM taller');
@@ -200,14 +201,26 @@ app.get('/api/talleres', async (req, res) => {
 // Ruta para crear un nuevo taller
 app.post('/api/talleres', async (req, res) => {
     const { Denominacion, Turno, anio } = req.body;
-    const query = 'INSERT INTO taller (Denominacion, Turno, anio) VALUES (?, ?, ?)';
+
+    // 'Anio' debe ir con mayúscula para coincidir con la base de datos:
+    const query = 'INSERT INTO taller (Denominacion, Turno, Anio) VALUES (?, ?, ?)';
+    
     try {
-        const [result] = await pool.query(query, [Denominacion, Turno, anio || null]);
-        const newTaller = { Id_Taller: result.insertId, Denominacion, Turno, anio };
-        res.status(201).json(newTaller);
+        const [result] = await pool.query(query, [
+            Denominacion, 
+            Turno, 
+            anio ? parseInt(anio, 10) : null
+        ]);
+        
+        res.status(201).json({
+            Id_Taller: result.insertId,
+            Denominacion,
+            Turno,
+            Anio: anio
+        });
     } catch (err) {
         console.error('Error al crear taller:', err);
-        res.status(500).send('Error al guardar el taller en la base de datos');
+        res.status(500).json({ message: err.sqlMessage || 'Error al guardar el taller' });
     }
 });
 
@@ -215,7 +228,8 @@ app.post('/api/talleres', async (req, res) => {
 app.put('/api/talleres/:id', async (req, res) => {
     const { id } = req.params;
     const { Denominacion, Turno, anio } = req.body;
-    const query = 'UPDATE taller SET Denominacion = ?, Turno = ?, anio = ? WHERE Id_Taller = ?';
+    // Se cambia 'anio' por 'Anio' en la sentencia SQL
+    const query = 'UPDATE taller SET Denominacion = ?, Turno = ?, Anio = ? WHERE Id_Taller = ?';
     try {
         const [result] = await pool.query(query, [Denominacion, Turno, anio || null, id]);
         if (result.affectedRows === 0) {

@@ -15,13 +15,14 @@ export default function TalleresTable() {
         const teacher = teachers.find(t => t.Id_Taller === idTaller);
         return teacher ? `${teacher.Nombre} ${teacher.Apellido}` : 'Sin asignar';
     };
-
+    //Cambiando para que me devuelva mañana en vez de maniana
     const displayTurno = (rawTurno) => {
-        if (rawTurno === 'Maniana') {
-            return 'Mañana';
-        }
-        return rawTurno;
-    };
+    if (!rawTurno) return '';
+    if (rawTurno.toLowerCase() === 'maniana' || rawTurno.toLowerCase() === 'manana') {
+        return 'Mañana';
+    }
+    return rawTurno;
+};
 
     const rows = talleres
         .filter(t =>
@@ -85,7 +86,7 @@ export default function TalleresTable() {
                                 return (
                                 <tr key={t.Id_Taller} className="hover:bg-gray-50">
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{t.Denominacion}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">{displayTurno(t.anio)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">{t.Anio || t.anio}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">{displayTurno(t.Turno)}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{teacherName}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">

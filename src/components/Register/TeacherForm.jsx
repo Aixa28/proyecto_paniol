@@ -54,6 +54,7 @@ export default function TeacherForm() {
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                             Taller y Turno *
                         </label>
+                        
                         <select
                             value={idTaller}
                             onChange={(e) => setIdTaller(e.target.value)}
@@ -62,11 +63,11 @@ export default function TeacherForm() {
                         >
                             <option value="">Seleccionar Taller…</option>
                             {talleres.map((t) => {
-                                const anioText = t.anio ? `${t.anio}° ` : '';
-                                const turnoText = t.Turno ? ` (${t.Turno})` : '';
+                                const text = `${t.Denominacion} (${t.Turno || ''})`;
                                 return (
                                     <option key={t.Id_Taller} value={t.Id_Taller}>
-                                        {anioText}{t.Denominacion}{turnoText}
+                                        {/* Renderiza Mañana correctamente en la interfaz */}
+                                        {text.replace(/maniana|manana/gi, 'Mañana')}
                                     </option>
                                 );
                             })}

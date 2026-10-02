@@ -197,11 +197,24 @@ export default function StockMovementModal({ material, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Ajuste de Requerimiento (+ para agregar, - para quitar)
               </label>
-              <select //agregamos el manejador
-                onChange={handleTallerChange}
-                className="w-full px-3 py-2 border rounded-md"
-                required
-              />
+              <select onChange={handleTallerChange} className="w-full px-3 py-2 border rounded-md" required >
+                <option value="">Seleccionar…</option>
+                {talleres.map((t) => {
+                  const docente = teachers.find(d => Number(d.Id_Taller) === Number(t.Id_Taller));
+                  const docenteNombre = docente ? ` - ${docente.Nombre} ${docente.Apellido}` : '';
+                  const turnoText = t.Turno ? ` (${t.Turno})` : '';
+                  
+                  // Armamos el texto completo
+                  const optionText = `${t.Denominacion}${turnoText}${docenteNombre}`;
+
+                  return (
+                    <option key={t.Id_Taller} value={t.Id_Taller}>
+                      {/* Le aplicamos el reemplazo al texto final */}
+                      {optionText.replace(/maniana|manana/gi, 'Mañana')}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
           )}
 
