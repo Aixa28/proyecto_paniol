@@ -19,7 +19,7 @@ export function StoreProvider({ children }) {
                 if (!response.ok) throw new Error('Network response was not ok for materials');
                 return response.json();
             };
-    
+
             const [materialsData, teachersData, talleresData, reportesData, rotationsData] = await Promise.all([
                 fetchMaterials(),
                 fetch('/api/docentes').then(res => {
@@ -45,7 +45,6 @@ export function StoreProvider({ children }) {
             setTalleres(talleresData);
             setRotations(rotationsData);
 
-            /* se cambio como se busca el nombre del docente en reportes, ahora se busca por ID y coincidencia de texto. */
             const formattedMovements = reportesData.map(r => {
                 const docId = r.id_docente || r.idDocente || r.responsable;
 
@@ -200,6 +199,7 @@ export function StoreProvider({ children }) {
         }
     };
 
+
     const addRotation = async (rotation) => {
         try {
             const response = await fetch('/api/rotaciones', {
@@ -288,7 +288,6 @@ export function StoreProvider({ children }) {
             let idTaller = null;
             let idDocente = null;
 
-            /* se cambio como se manda la información de taller en movimientos, ahora el nombre del taller o la combinación "denominacion - docente"*/
             if (department) {
                 const taller = talleres.find(t => 
                     t.Denominacion === department || 
@@ -298,7 +297,6 @@ export function StoreProvider({ children }) {
                 if (taller) idTaller = taller.Id_Taller;
             }
 
-            /* cambiamos que sea más flexible al ingresar/mostrar la información para evita que iddocente sea null */
             if (responsible) {
                 const teacher = teachers.find(t => {
                     const fullName = `${t.Nombre} ${t.Apellido}`.trim().toLowerCase();
@@ -339,9 +337,7 @@ export function StoreProvider({ children }) {
         }
     };
 
-    /* cambiamos los alias alternativos, el id de taller ahora se lee por id y Nombre y en requerimiento se eliminaron los signos (+-)*/
     const updateMaterialRequirement = async (params) => {
-        // acepta nombres de formulario como con nombres de backend
         const materialId = params.materialId;
         const rawRequirement = params.newRequirement ?? params.quantity ?? params.requerimiento;
         const targetDepartment = params.department ?? params.idTaller;
@@ -351,9 +347,7 @@ export function StoreProvider({ children }) {
         const originalMaterials = materials;
 
         try {
-            // resolviendo id del taller sin caer en que no es un número
             let resolvedIdTaller = null;
-            // cambiamos que la cuando se busca el taller compare la denominación y el Turno
             if (targetDepartment) {
                 const taller = talleres.find(t => 
                     t.Id_Taller === Number(targetDepartment) ||
@@ -364,7 +358,6 @@ export function StoreProvider({ children }) {
                 if (taller) resolvedIdTaller = taller.Id_Taller;
             }
 
-            // resolviendo id del docente para que sea más flexible
             let idDocente = null;
             if (responsible) {
                 const teacher = teachers.find(t => {
@@ -376,7 +369,6 @@ export function StoreProvider({ children }) {
                 if (teacher) idDocente = teacher.Id_Docente;
             }
 
-            // se limpian los signos
             const parsedRequirement = Number(String(rawRequirement || 0).replace('+', ''));
 
             const body = {
