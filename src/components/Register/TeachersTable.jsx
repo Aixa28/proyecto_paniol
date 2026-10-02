@@ -9,22 +9,27 @@ export default function TeachersTable() {
   const [edit, setEdit] = useState(null);
   const [del, setDel] = useState(null);
 
-  // Función para obtener el nombre del taller y el turno de un profesor
+  // Función para obtener el año, nombre del taller y turno de un profesor
   const getTeacherTallerName = (teacher) => {
     if (!teacher.Id_Taller) return 'Sin taller asignado';
     const associatedTaller = talleres.find(taller => Number(taller.Id_Taller) === Number(teacher.Id_Taller));
     if (!associatedTaller) return 'Sin taller asignado';
     
-    const anioText = associatedTaller.anio ? `${associatedTaller.anio}° - ` : '';
+    // Soporta tanto Anio como anio
+    const anioVal = associatedTaller.Anio || associatedTaller.anio;
+    const anioText = anioVal ? `${anioVal}° - ` : '';
     const turnoText = associatedTaller.Turno ? ` (${associatedTaller.Turno})` : '';
     
-    return `${anioText}${associatedTaller.Denominacion}${turnoText}`;
+    const fullText = `${anioText}${associatedTaller.Denominacion || associatedTaller.nombre || ''}${turnoText}`;
+    
+    // Corrige formateo de la palabra "Mañana"
+    return fullText.replace(/maniana|manana/gi, 'Mañana');
   };
 
   const rows = teachers
     .filter(t =>
       `${t.Nombre} ${t.Apellido}`.toLowerCase().includes(q.toLowerCase()) ||
-      t.Email.toLowerCase().includes(q.toLowerCase())
+      (t.Email && t.Email.toLowerCase().includes(q.toLowerCase()))
     )
     .sort((a,b)=> a.Nombre.localeCompare(b.Nombre));
 
@@ -67,19 +72,22 @@ export default function TeachersTable() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {rows.map(t => (
-                  <tr key={t.Id_Docente} className="hover:bg-gray-50">
+                {rows.map((t) => (
+                  <tr key={t.Id_Docente || t.Id_Profesor} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{t.Nombre} {t.Apellido}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">
-                        {getTeacherTallerName(t).replace(/maniana|manana/gi, 'Mañana')}
+                      <div className="text-sm font-medium text-gray-900">
+                        {t.Nombre} {t.Apellido}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{t.Email}</div>
+
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {getTeacherTallerName(t)}
                     </td>
+
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{t.Email || 'Sin email'}</div>
+                    </td>
+
                     <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                       <button onClick={()=>setEdit(t)} className="text-blue-600 hover:text-blue-900 mr-3">Editar</button>
                       <button onClick={()=>setDel(t)} className="text-red-600 hover:text-red-900">Eliminar</button>
@@ -97,7 +105,7 @@ export default function TeachersTable() {
         <DeleteTeacherModal
           teacher={del}
           onCancel={()=>setDel(null)}
-          onConfirm={() => { removeTeacher(del.Id_Docente); setDel(null); }}
+          onConfirm={() => { removeTeacher(del.Id_Docente || del.Id_Profesor); setDel(null); }}
         />
       )}
     </div>

@@ -54,21 +54,21 @@ export default function TeacherForm() {
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                             Taller y Turno *
                         </label>
-                        
                         <select
                             value={idTaller}
                             onChange={(e) => setIdTaller(e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white"
                             required
-                        >
-                            <option value="">Seleccionar Taller…</option>
+                            >
+                            <option value="">Seleccione un taller y turno...</option>
                             {talleres.map((t) => {
-                                const text = `${t.Denominacion} (${t.Turno || ''})`;
+                                const rawText = `${t.Denominacion || t.nombre || ''} (${t.Anio || t.anio || ''}°) ${t.Turno ? `- ${t.Turno}` : ''}`;
+                                const cleanText = rawText.replace(/maniana|manana/gi, 'Mañana');
+
                                 return (
-                                    <option key={t.Id_Taller} value={t.Id_Taller}>
-                                        {/* Renderiza Mañana correctamente en la interfaz */}
-                                        {text.replace(/maniana|manana/gi, 'Mañana')}
-                                    </option>
+                                <option key={t.Id_Taller} value={t.Id_Taller}>
+                                    {cleanText}
+                                </option>
                                 );
                             })}
                         </select>
