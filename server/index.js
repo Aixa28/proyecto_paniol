@@ -276,26 +276,18 @@ app.delete('/api/talleres/:id', async (req, res) => {
     }
 });
 
-// Ruta para obtener todos los docentes
+// Ruta para obtener todos los docentes (con trampa para ver el error)
 app.get('/api/docentes', async (req, res) => {
   try {
-    const query = `
-      SELECT 
-        d.Id_Docente,
-        d.Nombre,
-        d.Apellido,
-        d.Email,
-        t.Denominacion AS taller_nombre,
-        t.Anio AS anio,
-        t.Turno AS taller_turno
-      FROM docente d
-      LEFT JOIN taller t ON d.Id_Taller = t.Id_Taller
-    `;
-    const [rows] = await pool.query(query);
+    const [rows] = await pool.query('SELECT * FROM docente');
     res.json(rows);
   } catch (err) {
-    console.error('Error al obtener docentes:', err);
-    res.status(500).json({ message: 'Error al obtener docentes' });
+    console.error('🔥 ERROR CRítico EN /api/docentes:', err);
+    res.status(500).json({ 
+      error: true, 
+      mensaje: err.message, 
+      sqlMessage: err.sqlMessage 
+    });
   }
 });
 
