@@ -278,26 +278,25 @@ app.delete('/api/talleres/:id', async (req, res) => {
 
 // Ruta para obtener todos los docentes
 app.get('/api/docentes', async (req, res) => {
-    try {
-        const query = `
-            SELECT 
-                d.Id_Profesor,
-                d.Nombre,
-                d.Apellido,
-                d.Email,
-                d.Turno,
-                t.Denominacion AS taller_nombre,
-                t.Anio AS anio,       -- Asegúrate de incluir t.Anio
-                t.Turno AS taller_turno
-            FROM docente d
-            LEFT JOIN taller t ON d.Id_Taller = t.Id_Taller
-        `;
-        const [results] = await pool.query(query);
-        res.json(results);
-    } catch (err) {
-        console.error('Error al obtener docentes:', err);
-        res.status(500).json({ 'Error al obtener los docentes de la base de datos' });
-    }
+  try {
+    const query = `
+      SELECT 
+        d.Id_Docente,
+        d.Nombre,
+        d.Apellido,
+        d.Email,
+        t.Denominacion AS taller_nombre,
+        t.Anio AS anio,
+        t.Turno AS taller_turno
+      FROM docente d
+      LEFT JOIN taller t ON d.Id_Taller = t.Id_Taller
+    `;
+    const [rows] = await pool.query(query);
+    res.json(rows);
+  } catch (err) {
+    console.error('Error al obtener docentes:', err);
+    res.status(500).json({ message: 'Error al obtener docentes' });
+  }
 });
 
 // Ruta para crear un nuevo docente
