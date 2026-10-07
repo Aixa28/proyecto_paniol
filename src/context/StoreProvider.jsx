@@ -156,7 +156,10 @@ export function StoreProvider({ children }) {
     };
 
     const updateTeacher = async (id, patch) => {
-        const response = await fetch(`/api/docentes/${id}`, {
+        // Limpia cualquier ID malformado (ej. "5:1" -> "5")
+        const cleanId = String(id).includes(':') ? String(id).split(':')[0] : id;
+
+        const response = await fetch(`/api/docentes/${cleanId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(patch),
