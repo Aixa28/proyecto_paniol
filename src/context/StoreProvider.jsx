@@ -14,10 +14,27 @@ export function StoreProvider({ children }) {
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const fetchMaterials = async () => {
+           const fetchMaterials = async () => {
                 const response = await fetch('/api/inventario/resumen');
                 if (!response.ok) throw new Error('Network response was not ok for materials');
-                return response.json();
+                const data = await response.json();
+
+                // Agrupamos por Id_Material (o Nombre_Descripcion si el ID cambia) para sumar duplicados
+                const map = new Map();
+                data.forEach(item => {
+                    const key = item.Id_Material ?? item.Nombre_Descripcion;
+                    if (map.has(key)) {
+                        const existing = map.get(key);
+                        existing.StockActual = Number(existing.StockActual || 0) + Number(item.StockActual || 0);
+                        // Sumamos también el requerimiento si existe en la estructura
+                        if (item.Requerimiento !== undefined) {
+                            existing.Requerimiento = Number(existing.Requerimiento || 0) + Number(item.Requerimiento || 0);
+                        }
+                    } else {
+                        map.set(key, { ...item });
+                    }
+                });
+                return Array.from(map.values());
             };
 
             const [materialsData, teachersData, talleresData, reportesData, rotationsData] = await Promise.all([
