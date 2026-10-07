@@ -11,12 +11,11 @@ export default function StockMovementModal({ material, onClose }) {
   const [department, setDepartment] = useState("");
   const [responsible, setResponsible] = useState("");
   const [observations, setObservations] = useState("");
-  const [showTeacherList, setShowTeacherList] = useState(false);
   
   const onSubmit = async (e) => {
     e.preventDefault();
 
-    console.log('onSubmit llamado', { movementType, materialId, quantity, responsible, department });
+    console.log('onSubmit llamado', { movementType, materialId, quantity, newRequirement, responsible, department });
     
     try {
       if (movementType === 'Cambio de Requerimiento') {
@@ -32,13 +31,13 @@ export default function StockMovementModal({ material, onClose }) {
             newRequirement: Number(newRequirement),
             observations,
             responsible,
-        });
+          });
           toast.success("Requerimiento actualizado correctamente");
       } else {
           const movementData = {
             materialId: Number(materialId),
             movementType,
-            quantity,
+            quantity: Number(quantity),
             observations,
           };
 
@@ -155,18 +154,18 @@ export default function StockMovementModal({ material, onClose }) {
               </label>
               <input
                 type="number"
-                value={newRequirement}
-                onChange={(e) => setNewRequirement(e.target.value)}
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
                 className="w-full px-3 py-2 border rounded-md"
                 required
-            />
+              />
             </div>
           )}
 
           {movementType === "Cambio de Requerimiento" && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Ajuste de Requerimiento (+ para agregar, - para quitar)
+                Cantidad *
               </label>
               <input
                 type="number"

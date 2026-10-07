@@ -16,7 +16,7 @@ const dbConfig = {
     host: 'localhost',
     user: 'root', 
     password: '', 
-    database: 'gestion_paniol',
+    database: 'bdpaniol',
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
@@ -108,16 +108,29 @@ app.get('/api/materiales', async (req, res) => {
   }
 });
 
-// Ruta para crear un nuevo material
+// Ruta para crear un nuevo material (o sumar stock si ya existe)
 app.post('/api/materiales', async (req, res) => {
-  const { Nombre_Descripcion, StockActual } = req.body;
-  const query = 'INSERT INTO material (Nombre_Descripcion, StockActual) VALUES (?, ?)';
+  let { Nombre_Descripcion, StockActual } = req.body;
+  
+  Nombre_Descripcion = Nombre_Descripcion ? Nombre_Descripcion.trim() : '';
+
+  const query = `
+    INSERT INTO material (Nombre_Descripcion, StockActual) 
+    VALUES (?, ?) 
+    ON DUPLICATE KEY UPDATE StockActual = StockActual + ?
+  `;
+  
   try {
-    const [result] = await pool.query(query, [Nombre_Descripcion, StockActual]);
-    const newMaterial = { Id_Material: result.insertId, Nombre_Descripcion, StockActual };
-    res.status(201).json(newMaterial);
+    const [result] = await pool.query(query, [Nombre_Descripcion, StockActual, StockActual]);
+    
+    // Si ya existía, buscamos el material actualizado para devolverlo completo al frontend
+    const [rows] = await pool.query('SELECT * FROM material WHERE Nombre_Descripcion = ?', [Nombre_Descripcion]);
+    const materialGuardado = rows[0];
+
+    // Devolvemos el objeto completo que el frontend espera recibir
+    res.status(201).json(materialGuardado);
   } catch (err) {
-    console.error('Error al crear material:', err);
+    console.error('Error al crear o actualizar material:', err);
     res.status(500).send('Error al guardar el material en la base de datos');
   }
 });
@@ -174,6 +187,7 @@ app.put('/api/materiales/:id', async (req, res) => {
 // ----------------------------------------------------
 
 // Ruta para obtener todos los talleres
+
 app.get('/api/talleres', async (req, res) => {
   try {
     const [results] = await pool.query('SELECT * FROM taller');
@@ -187,14 +201,26 @@ app.get('/api/talleres', async (req, res) => {
 // Ruta para crear un nuevo taller
 app.post('/api/talleres', async (req, res) => {
     const { Denominacion, Turno, anio } = req.body;
-    const query = 'INSERT INTO taller (Denominacion, Turno, anio) VALUES (?, ?, ?)';
+
+    // 'Anio' debe ir con mayúscula para coincidir con la base de datos:
+    const query = 'INSERT INTO taller (Denominacion, Turno, Anio) VALUES (?, ?, ?)';
+    
     try {
-        const [result] = await pool.query(query, [Denominacion, Turno, anio || null]);
-        const newTaller = { Id_Taller: result.insertId, Denominacion, Turno, anio };
-        res.status(201).json(newTaller);
+        const [result] = await pool.query(query, [
+            Denominacion, 
+            Turno, 
+            anio ? parseInt(anio, 10) : null
+        ]);
+        
+        res.status(201).json({
+            Id_Taller: result.insertId,
+            Denominacion,
+            Turno,
+            Anio: anio
+        });
     } catch (err) {
         console.error('Error al crear taller:', err);
-        res.status(500).send('Error al guardar el taller en la base de datos');
+        res.status(500).json({ message: err.sqlMessage || 'Error al guardar el taller' });
     }
 });
 
@@ -202,7 +228,8 @@ app.post('/api/talleres', async (req, res) => {
 app.put('/api/talleres/:id', async (req, res) => {
     const { id } = req.params;
     const { Denominacion, Turno, anio } = req.body;
-    const query = 'UPDATE taller SET Denominacion = ?, Turno = ?, anio = ? WHERE Id_Taller = ?';
+    // Se cambia 'anio' por 'Anio' en la sentencia SQL
+    const query = 'UPDATE taller SET Denominacion = ?, Turno = ?, Anio = ? WHERE Id_Taller = ?';
     try {
         const [result] = await pool.query(query, [Denominacion, Turno, anio || null, id]);
         if (result.affectedRows === 0) {
@@ -249,14 +276,18 @@ app.delete('/api/talleres/:id', async (req, res) => {
     }
 });
 
-// Ruta para obtener todos los docentes
+// Ruta para obtener todos los docentes (con trampa para ver el error)
 app.get('/api/docentes', async (req, res) => {
   try {
-    const [results] = await pool.query('SELECT * FROM docente');
-    res.json(results);
+    const [rows] = await pool.query('SELECT * FROM docente');
+    res.json(rows);
   } catch (err) {
-    console.error('Error al obtener docentes:', err);
-    res.status(500).send('Error al obtener los docentes de la base de datos');
+    console.error('🔥 ERROR CRítico EN /api/docentes:', err);
+    res.status(500).json({ 
+      error: true, 
+      mensaje: err.message, 
+      sqlMessage: err.sqlMessage 
+    });
   }
 });
 
@@ -501,9 +532,9 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
     try {
         await connection.beginTransaction();
 
-        // 0. Si idDocente viene nulo/falsy pero tenemos idTaller, lo buscamos en la base de datos
+        // si el id del Docente viene nulo7falso pero tenemos el id de Taller, lo buscamos en la base de datos
         if (!idDocente && idTaller) {
-            // Buscamos en la tabla docente por el Id_Taller asignado
+            // buscamos en la tabla docente por el id del taller asignado
             const [docenteResult] = await connection.query(
                 'SELECT Id_Docente FROM docente WHERE Id_Taller = ? LIMIT 1',
                 [idTaller]
@@ -512,7 +543,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
             if (docenteResult.length > 0) {
                 idDocente = docenteResult[0].Id_Docente;
             } else {
-                // Si la relación está en la tabla taller
+                // si la relación está en la tabla taller
                 const [tallerResult] = await connection.query(
                     'SELECT Id_Docente FROM taller WHERE Id_Taller = ? LIMIT 1',
                     [idTaller]
@@ -525,7 +556,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
 
         console.log("Datos recibidos en backend:", { materialId, idTaller, newRequirement, idDocente });
 
-        // 1. Buscar la rotación activa (o la más reciente como fallback)
+        // bscar la rotación activa (o la más reciente como fallback)
         let [rotations] = await connection.query(
             'SELECT Id_Rotacion FROM rotacion WHERE CURDATE() BETWEEN Inicio AND Final LIMIT 1'
         );
@@ -542,7 +573,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
 
         const idRotacion = rotations[0].Id_Rotacion;
 
-        // 2. Obtener el requerimiento actual para calcular la diferencia
+        // obtener el requerimiento actual para calcular la diferencia
         const [currentRequirementResult] = await connection.query(
             `SELECT Requerimiento FROM materialxrotacionxtaller 
              WHERE Id_Material = ? AND Id_Taller = ? AND Id_Rotacion = ?`,
@@ -552,7 +583,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
         const currentRequirement = currentRequirementResult.length > 0 ? currentRequirementResult[0].Requerimiento : 0;
         const quantityChange = newRequirement - currentRequirement;
 
-        // 3. Insertar en movimientos para auditoría (ya con idDocente resuelto)
+        // insertar en movimientos para auditoría (ya con idDocente resuelto)
         const insertMovementQuery = `
             INSERT INTO movimiento (Id_Material, Tipo, Cantidad, Id_Taller, Id_Docente, Observacion, Fecha)
             VALUES (?, 'Cambio de Requerimiento', ?, ?, ?, ?, NOW())
@@ -566,7 +597,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
         ]);
         const newMovementId = movementResult.insertId;
 
-        // 4. Actualizar el requerimiento en la tabla intermedia
+        // actualizar el requerimiento en la tabla intermedia
         const updateRequirementQuery = `
             INSERT INTO materialxrotacionxtaller (Id_Taller, Id_Rotacion, Id_Material, Fecha, Requerimiento)
             VALUES (?, ?, ?, CURDATE(), ?)
@@ -576,7 +607,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
         `;
         await connection.query(updateRequirementQuery, [idTaller, idRotacion, materialId, newRequirement]);
         
-        // 5. Confirmar la transacción
+        // confirmar la transacción
         await connection.commit();
 
         res.status(201).json({
@@ -596,7 +627,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
     }
 });
 
-// Requerimiento total de todos los talleres por material (rotación activa)
+// Requerimiento total de todos los talleres por material (rotación activa y su fecha de fin)
 app.get('/api/inventario/resumen', async (req, res) => {
     const query = `
         SELECT 
@@ -605,17 +636,17 @@ app.get('/api/inventario/resumen', async (req, res) => {
             m.StockActual,
             COALESCE(SUM(mrt.Requerimiento), 0) AS Requerimiento,
             m.StockActual - COALESCE(SUM(mrt.Requerimiento), 0) AS Balance_Numerico,
-            CASE
-                WHEN COALESCE(SUM(mrt.Requerimiento), 0) = 0 THEN 'DISPONIBLE'
-                WHEN m.StockActual <= 0 THEN 'FALTANTE'
-                WHEN m.StockActual < SUM(mrt.Requerimiento) THEN 'FALTANTE'
-                WHEN (m.StockActual - SUM(mrt.Requerimiento)) <= 2 THEN 'LIMITADO'
-                ELSE 'DISPONIBLE'
-            END AS Estado
+            'DISPONIBLE' AS Estado,
+            (
+                SELECT DATE_FORMAT(r_prox.Inicio, '%d/%m/%Y')
+                FROM materialxrotacionxtaller mrt_prox
+                JOIN rotacion r_prox ON mrt_prox.Id_Rotacion = r_prox.Id_Rotacion
+                WHERE mrt_prox.Id_Material = m.Id_Material
+                ORDER BY r_prox.Inicio ASC
+                LIMIT 1
+            ) AS Proxima_Rotacion
         FROM material m
         LEFT JOIN materialxrotacionxtaller mrt ON m.Id_Material = mrt.Id_Material
-        LEFT JOIN rotacion r ON mrt.Id_Rotacion = r.Id_Rotacion
-            AND CURDATE() BETWEEN r.Inicio AND r.Final
         GROUP BY m.Id_Material, m.Nombre_Descripcion, m.StockActual
         ORDER BY m.Nombre_Descripcion
     `;

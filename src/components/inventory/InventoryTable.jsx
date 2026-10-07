@@ -16,10 +16,10 @@ function badge(material) {
     }
 }
 
-    export default function InventoryTable({ rows }) {
+export default function InventoryTable({ rows }) {
     const { removeMaterial } = useStore();
-    const [edit, setEdit] = useState(null);     // material or null
-    const [del, setDel]   = useState(null);     // material or null
+    const [edit, setEdit] = useState(null);    // material or null
+    const [del, setDel]   = useState(null);    // material or null
 
     return (
         <>
@@ -32,6 +32,8 @@ function badge(material) {
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Stock Actual</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Requerimiento</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                    {/* NUEVA COLUMNA UBICADA ENTRE ESTADO Y ACCIONES */}
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Próxima Rotación</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                 </tr>
                 </thead>
@@ -54,6 +56,12 @@ function badge(material) {
                         <td className="px-6 py-4 whitespace-nowrap text-center">
                         <span title={title} className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${b.cls}`}>{b.text}</span>
                         </td>
+                        
+                        {/* NUEVA CELDA: Solo muestra la fecha si el estado es FALTANTE, de lo contrario muestra un guión */}
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                            {m.Estado === 'FALTANTE' ? (m.Proxima_Rotacion || '-') : '-'}
+                        </td>
+
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                         <button onClick={()=>setEdit(m)} className="text-blue-600 hover:text-blue-900 mr-3">Editar</button>
                         <button onClick={()=>setDel(m)}  className="text-red-600 hover:text-red-900">Eliminar</button>

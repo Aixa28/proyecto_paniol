@@ -19,7 +19,7 @@ export function StoreProvider({ children }) {
                 if (!response.ok) throw new Error('Network response was not ok for materials');
                 return response.json();
             };
-    
+
             const [materialsData, teachersData, talleresData, reportesData, rotationsData] = await Promise.all([
                 fetchMaterials(),
                 fetch('/api/docentes').then(res => {
@@ -214,6 +214,7 @@ export function StoreProvider({ children }) {
         }
     };
 
+
     const addRotation = async (rotation) => {
         try {
             const response = await fetch('/api/rotaciones', {
@@ -359,9 +360,7 @@ export function StoreProvider({ children }) {
         }
     };
 
-    /* cambiamos los alias alternativos, el id de taller ahora se lee por id y Nombre y en requerimiento se eliminaron los signos (+-)*/
     const updateMaterialRequirement = async (params) => {
-        // acepta nombres de formulario como con nombres de backend
         const materialId = params.materialId;
         const rawRequirement = params.newRequirement ?? params.quantity ?? params.requerimiento;
         const targetDepartment = params.department ?? params.idTaller;
@@ -371,9 +370,7 @@ export function StoreProvider({ children }) {
         const originalMaterials = materials;
 
         try {
-            // resolviendo id del taller sin caer en que no es un número
             let resolvedIdTaller = null;
-            // cambiamos que la cuando se busca el taller compare la denominación y el Turno
             if (targetDepartment) {
                 const taller = talleres.find(t => 
                     t.Id_Taller === Number(targetDepartment) ||
@@ -384,7 +381,6 @@ export function StoreProvider({ children }) {
                 if (taller) resolvedIdTaller = taller.Id_Taller;
             }
 
-            // resolviendo id del docente para que sea más flexible
             let idDocente = null;
             if (responsible) {
                 const teacher = teachers.find(t => {
@@ -396,7 +392,6 @@ export function StoreProvider({ children }) {
                 if (teacher) idDocente = teacher.Id_Docente;
             }
 
-            // se limpian los signos
             const parsedRequirement = Number(String(rawRequirement || 0).replace('+', ''));
 
             const body = {
