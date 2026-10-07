@@ -45,18 +45,21 @@ export function StoreProvider({ children }) {
             setTalleres(talleresData);
             setRotations(rotationsData);
 
-            /* se cambio como se busca el nombre del docente en reportes, ahora se busca por ID y coincidencia de texto. */
+
+            /* Mapeo actualizado para capturar Id_Docente y nombre de responsable correctamente */
             const formattedMovements = reportesData.map(r => {
-                const docId = r.id_docente || r.idDocente || r.responsable;
+                // Incluimos la lectura de r.Id_Docente y r.id_docente
+                const docId = r.Id_Docente || r.id_docente || r.idDocente || r.responsable;
 
                 const teacher = teachersData.find(t => 
                     t.Id_Docente === Number(docId) || 
-                    `${t.Nombre} ${t.Apellido}`.trim().toLowerCase() === String(docId).trim().toLowerCase()
+                    `${t.Nombre} ${t.Apellido}`.trim().toLowerCase() === String(docId).trim().toLowerCase() ||
+                    `${t.Apellido} ${t.Nombre}`.trim().toLowerCase() === String(docId).trim().toLowerCase()
                 );
 
                 const teacherName = teacher 
                     ? `${teacher.Nombre} ${teacher.Apellido}` 
-                    : (r.responsable || "");
+                    : (r.responsable || "-");
 
                 return {
                     id: r.id,
