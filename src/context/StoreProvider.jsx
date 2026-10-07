@@ -45,17 +45,29 @@ export function StoreProvider({ children }) {
             setTalleres(talleresData);
             setRotations(rotationsData);
 
-            const formattedMovements = reportesData.map(r => {
-                const docId = r.id_docente || r.idDocente || r.responsable;
 
-                const teacher = teachersData.find(t => 
-                    t.Id_Docente === Number(docId) || 
-                    `${t.Nombre} ${t.Apellido}`.trim().toLowerCase() === String(docId).trim().toLowerCase()
-                );
+            /* Mapeo actualizado para capturar Id_Docente y nombre de responsable correctamente */
+            const formattedMovements = reportesData.map(r => {
+                // Captura el ID o el string que venga en la API
+                const docId = r.Id_Docente ?? r.id_docente ?? r.idDocente ?? r.responsable;
+
+                // Busca al docente por ID o por coincidencia de texto
+                const teacher = teachersData.find(t => {
+                    if (!docId) return false;
+                    const target = String(docId).trim().toLowerCase();
+                    const fullName = `${t.Nombre} ${t.Apellido}`.trim().toLowerCase();
+                    const altFullName = `${t.Apellido} ${t.Nombre}`.trim().toLowerCase();
+                    
+                    return (
+                        t.Id_Docente === Number(docId) || 
+                        fullName === target ||
+                        altFullName === target
+                    );
+                });
 
                 const teacherName = teacher 
                     ? `${teacher.Nombre} ${teacher.Apellido}` 
-                    : (r.responsable || "");
+                    : (r.responsable && r.responsable !== "NULL" ? r.responsable : "-");
 
                 return {
                     id: r.id,
@@ -152,7 +164,10 @@ export function StoreProvider({ children }) {
     };
 
     const updateTeacher = async (id, patch) => {
-        const response = await fetch(`/api/docentes/${id}`, {
+        // Limpia cualquier ID malformado (ej. "5:1" -> "5")
+        const cleanId = String(id).includes(':') ? String(id).split(':')[0] : id;
+
+        const response = await fetch(`/api/docentes/${cleanId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(patch),
@@ -245,7 +260,7 @@ export function StoreProvider({ children }) {
             throw err;
         }
     };
-
+    
     const registerMovement = async ({ materialId, movementType, quantity, responsible, observations, department }) => {
         console.log('registerMovement llamado:', { materialId, movementType, quantity, responsible, department });
         
@@ -271,38 +286,46 @@ export function StoreProvider({ children }) {
         );
         setMaterials(updatedMaterials);
 
-        const newMovement = {
-            id: `optimistic-${Date.now()}`,
-            materialId,
-            materialName: materialToUpdate.Nombre_Descripcion ?? "",
-            type: movementType,
-            quantity,
-            responsible,
-            observations,
-            department: department || "",
-            date: new Date()
-        };
-        setMovements(prev => [newMovement, ...prev]);
-
         try {
             let idTaller = null;
             let idDocente = null;
 
+            // 1. Búsqueda flexible de Taller
             if (department) {
-                const taller = talleres.find(t => 
-                    t.Denominacion === department || 
-                    `${t.Denominacion} - ${t.Docente}` === department ||
-                    department.includes(t.Denominacion)
-                );
+                const depLower = String(department).trim().toLowerCase();
+                const taller = talleres.find(t => {
+                    const denom = (t.Denominacion || "").toLowerCase();
+                    const turno = (t.Turno || "").toLowerCase();
+                    const fullFormat1 = `${denom} (${turno})`.trim();
+                    const fullFormat2 = `${denom} - ${turno}`.trim();
+                    
+                    return (
+                        String(t.Id_Taller) === depLower ||
+                        denom === depLower ||
+                        depLower.includes(denom) ||
+                        fullFormat1 === depLower ||
+                        fullFormat2 === depLower
+                    );
+                });
                 if (taller) idTaller = taller.Id_Taller;
             }
 
+            // 2. Búsqueda flexible de Docente
             if (responsible) {
+                const respLower = String(responsible).trim().toLowerCase();
                 const teacher = teachers.find(t => {
-                    const fullName = `${t.Nombre} ${t.Apellido}`.trim().toLowerCase();
-                    const altFullName = `${t.Apellido} ${t.Nombre}`.trim().toLowerCase();
-                    const target = String(responsible).trim().toLowerCase();
-                    return fullName === target || altFullName === target || String(t.Id_Docente) === target;
+                    const nom = (t.Nombre || "").toLowerCase();
+                    const ape = (t.Apellido || "").toLowerCase();
+                    const fullName = `${nom} ${ape}`.trim();
+                    const altFullName = `${ape} ${nom}`.trim();
+
+                    return (
+                        String(t.Id_Docente) === respLower ||
+                        fullName === respLower ||
+                        altFullName === respLower ||
+                        respLower.includes(nom) ||
+                        respLower.includes(ape)
+                    );
                 });
                 if (teacher) idDocente = teacher.Id_Docente;
             }
