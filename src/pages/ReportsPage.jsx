@@ -2,11 +2,11 @@
     import { useMemo, useState } from "react";
     import { useStore } from "../context/StoreProvider";
     import ReportsTable from "../components/Reports/ReportsTable";
-    import excelJS from "excelJS";
+    import ExcelJS from "exceljs";
     import { jsPDF } from "jspdf";
     import autoTable from "jspdf-autotable";
     import { saveAs } from "file-saver";
-
+    
     function normalize(d) {
     if (!d) return null;
     // Asegura que el filtro "hasta" incluya todo el día
@@ -70,15 +70,26 @@
         arr = arr.filter(m => new Date(m.date) <= toDate);
         }
 
-        // Add material status to each movement
+        // Agregar el estado actual del material a cada movimiento
         const arrWithStatus = arr.map(movement => {
-            const materialInfo = materials.find(m => m.Id_Material === movement.materialId);
+            // Buscamos coincidencia por ID (convirtiendo a Number) o por Nombre de material
+            const materialInfo = materials.find(m => 
+                Number(m.Id_Material) === Number(movement.materialId) ||
+                (m.Nombre_Descripcion && movement.materialName && 
+                m.Nombre_Descripcion.trim().toLowerCase() === movement.materialName.trim().toLowerCase())
+            );
+
+            // Obtenemos el estado o un valor por defecto
+            const estadoCalculado = materialInfo 
+                ? (materialInfo.Estado || materialInfo.estado || 'DISPONIBLE')
+                : 'Indefinido';
+
             return {
                 ...movement,
-                Estado: materialInfo ? materialInfo.Estado : 'Indefinido'
+                Estado: estadoCalculado
             };
         });
-
+        
         // Orden descendente
         arrWithStatus.sort((a, b) => new Date(b.date) - new Date(a.date));
         return arrWithStatus;
@@ -93,85 +104,82 @@
         setTo("");
     };
 
-    // --- EXPORTAR A EXCEL ---
-    const exportToExcel = () => {
-        // 1. Definimos los encabezados y preparamos los datos.
+    // --- EXPORTAR A EXCEL (con ExcelJS) ---
+    const exportToExcel = async () => {
+        // 1. Crear libro y hoja de trabajo
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet("Movimientos");
+
+        // 2. Agregar título principal
         const headers = ['Material', 'Estado', 'Tipo', 'Cantidad', 'Departamento', 'Responsable', 'Observaciones', 'Fecha'];
-        const sheetData = rows.map(row => [
-            row.materialName,
-            row.Estado,
-            row.type,
-            row.quantity,
-            row.department || "-",
-            row.responsible,
-            row.observations || "-",
-            new Date(row.date).toLocaleString("es-AR", {
-                day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"
-            }),
-        ]);
+        
+        worksheet.addRow(["Informe de Movimientos de Stock"]);
+        worksheet.mergeCells(1, 1, 1, headers.length); // Fusionar título de A1 a H1
 
-        // 2. Creamos una hoja de cálculo desde un array de arrays.
-        const ws = XLSX.utils.aoa_to_sheet([["Informe de Movimientos de Stock"], headers, ...sheetData]);
+        // Estilo para el título
+        const titleCell = worksheet.getCell("A1");
+        titleCell.font = { name: "Arial", size: 14, bold: true, color: { argb: "FFFFFF" } };
+        titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "4F86C6" } };
+        titleCell.alignment = { horizontal: "center", vertical: "middle" };
+        worksheet.getRow(1).height = 30;
 
-        // 3. Fusionamos la celda del título para que ocupe todo el ancho.
-        ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } }];
-
-        // 4. Definimos el ancho de las columnas.
-        ws['!cols'] = [
-            { wch: 30 }, // Material
-            { wch: 15 }, // Estado
-            { wch: 10 }, // Tipo
-            { wch: 10 }, // Cantidad
-            { wch: 20 }, // Departamento
-            { wch: 20 }, // Responsable
-            { wch: 35 }, // Observaciones
-            { wch: 20 }  // Fecha
-        ];
-
-        // 5. Definimos los estilos.
-        const titleStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "4F86C6" } }, alignment: { horizontal: "center", vertical: "center" } };
-        const headerStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "4F86C6" } } };
-        const cellStyle = { border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } } };
-
-        // 6. Aplicamos los estilos a las celdas.
-        const range = XLSX.utils.decode_range(ws['!ref']);
-        for (let R = range.s.r; R <= range.e.r; ++R) {
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-                const cell_address = { c: C, r: R };
-                const cell_ref = XLSX.utils.encode_cell(cell_address);
-                if (!ws[cell_ref]) continue; // Si la celda no existe, la saltamos.
-
-                // Estilo para el título principal (fila 0)
-                if (R === 0) {
-                    ws[cell_ref].s = titleStyle;
-                }
-                // Estilo para los encabezados de la tabla (fila 1)
-                else if (R === 1) {
-                    ws[cell_ref].s = headerStyle;
-                }
-                // Estilo con bordes para todas las celdas de datos
-                else {
-                    ws[cell_ref].s = cellStyle;
-                }
-            }
-        }
-        // Aplicar el estilo al título fusionado también
-        ws['A1'].s = titleStyle;
-
-
-        // 7. Creamos un nuevo libro de trabajo y le añadimos nuestra hoja.
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Movimientos");
-
-        // 8. Generamos el buffer del archivo Excel.
-        const excelBuffer = XLSX.write(wb, {
-            bookType: "xlsx",
-            type: "array",
+        // 3. Agregar encabezados
+        const headerRow = worksheet.addRow(headers);
+        headerRow.height = 24;
+        headerRow.eachCell((cell) => {
+            cell.font = { name: "Arial", size: 11, bold: true, color: { argb: "FFFFFF" } };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "4F86C6" } };
+            cell.alignment = { horizontal: "center", vertical: "middle" };
+            cell.border = {
+                top: { style: "thin" },
+                left: { style: "thin" },
+                bottom: { style: "thin" },
+                right: { style: "thin" }
+            };
         });
 
-        // 9. Creamos el Blob y lo guardamos con file-saver.
-        const data = new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-        saveAs(data, `Reporte_Movimientos_${new Date().toLocaleDateString('es-AR').replace(/\//g, '-')}.xlsx`);
+        // 4. Agregar filas de datos
+        rows.forEach(row => {
+            const dataRow = worksheet.addRow([
+                row.materialName,
+                row.Estado,
+                row.type,
+                row.quantity,
+                row.department || "-",
+                row.responsible,
+                row.observations || "-",
+                new Date(row.date).toLocaleString("es-AR", {
+                    day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"
+                })
+            ]);
+
+            dataRow.eachCell((cell) => {
+                cell.font = { name: "Arial", size: 10 };
+                cell.border = {
+                    top: { style: "thin", color: { argb: "D3D3D3" } },
+                    left: { style: "thin", color: { argb: "D3D3D3" } },
+                    bottom: { style: "thin", color: { argb: "D3D3D3" } },
+                    right: { style: "thin", color: { argb: "D3D3D3" } }
+                };
+            });
+        });
+
+        // 5. Configurar ancho de columnas
+        worksheet.columns = [
+            { width: 30 }, // Material
+            { width: 15 }, // Estado
+            { width: 15 }, // Tipo
+            { width: 12 }, // Cantidad
+            { width: 22 }, // Departamento
+            { width: 22 }, // Responsable
+            { width: 35 }, // Observaciones
+            { width: 22 }  // Fecha
+        ];
+
+        // 6. Generar el archivo y descargarlo
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        saveAs(blob, `Reporte_Movimientos_${new Date().toLocaleDateString('es-AR').replace(/\//g, '-')}.xlsx`);
     };
 
     // --- EXPORTAR A PDF ---
