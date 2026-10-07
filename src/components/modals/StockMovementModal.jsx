@@ -12,36 +12,6 @@ export default function StockMovementModal({ material, onClose }) {
   const [responsible, setResponsible] = useState("");
   const [observations, setObservations] = useState("");
   
-  // cambiando el manejador para que actualize el taller y docente al mismo tiempo
-  const handleTallerChange = (e) => {
-    const selectedId = Number(e.target.value);
-    
-    if (!selectedId) {
-      setDepartment("");
-      setResponsible("");
-      return;
-    }
-
-    // busca el taller exactamente por su id
-    const selectedTaller = talleres.find(t => Number(t.Id_Taller) === selectedId);
-    
-    if (selectedTaller) {
-      // guardar denominación (o combinación con turno/año si lo usas en UI)
-      setDepartment(selectedTaller.Denominacion);
-
-      // buscar el docente vinculado convirtiendo ambos IDs a número
-      const docente = teachers.find(d => Number(d.Id_Taller) === Number(selectedTaller.Id_Taller));
-      
-      if (docente) {
-        setResponsible(`${docente.Nombre} ${docente.Apellido}`);
-      } else {
-        setResponsible("");
-      }
-    } else {
-      setDepartment("");
-      setResponsible("");
-    }
-  };
   const onSubmit = async (e) => {
     e.preventDefault();
 
@@ -67,7 +37,7 @@ export default function StockMovementModal({ material, onClose }) {
           const movementData = {
             materialId: Number(materialId),
             movementType,
-            quantity: Number(quantity), // <-- Ahora usa la cantidad correcta del input de Ingreso/Egreso
+            quantity: Number(quantity),
             observations,
           };
 
@@ -195,26 +165,15 @@ export default function StockMovementModal({ material, onClose }) {
           {movementType === "Cambio de Requerimiento" && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Ajuste de Requerimiento (+ para agregar, - para quitar)
+                Cantidad *
               </label>
-              <select onChange={handleTallerChange} className="w-full px-3 py-2 border rounded-md" required >
-                <option value="">Seleccionar…</option>
-                {talleres.map((t) => {
-                  const docente = teachers.find(d => Number(d.Id_Taller) === Number(t.Id_Taller));
-                  const docenteNombre = docente ? ` - ${docente.Nombre} ${docente.Apellido}` : '';
-                  const turnoText = t.Turno ? ` (${t.Turno})` : '';
-                  
-                  // Armamos el texto completo
-                  const optionText = `${t.Denominacion}${turnoText}${docenteNombre}`;
-
-                  return (
-                    <option key={t.Id_Taller} value={t.Id_Taller}>
-                      {/* Le aplicamos el reemplazo al texto final */}
-                      {optionText.replace(/maniana|manana/gi, 'Mañana')}
-                    </option>
-                  );
-                })}
-              </select>
+              <input
+                type="number"
+                value={newRequirement}
+                onChange={(e) => setNewRequirement(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md"
+                required
+              />
             </div>
           )}
 
