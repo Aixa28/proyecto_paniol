@@ -387,33 +387,34 @@ app.delete('/api/rotaciones/:id', async (req, res) => {
 // ----------------------------------------------------
 // RUTA DE REPORTES
 // ----------------------------------------------------
+
 // cambiamos que se muestre la denominación junto con el turno para diferenciarlos claramente
 app.get('/api/reportes', async (req, res) => {
+  try {
     const query = `
-        SELECT 
-            mov.Id_Movimiento AS id,
-            mov.Id_Material AS materialId,
-            m.Nombre_Descripcion AS material,
-            mov.Tipo AS tipo,
-            mov.Cantidad AS cantidad,
-            CONCAT(t.Denominacion, ' (', t.Turno, ')') AS departamento,
-            COALESCE(CONCAT(d.Nombre, ' ', d.Apellido), '') AS responsable,
-            mov.Observacion AS observacion,
-            mov.Fecha AS fecha
-        FROM movimiento mov
-        LEFT JOIN material m ON mov.Id_Material = m.Id_Material
-        LEFT JOIN taller t ON mov.Id_Taller = t.Id_Taller
-        LEFT JOIN docente d ON mov.Id_Docente = d.Id_Docente
-        ORDER BY mov.Fecha DESC
+      SELECT 
+        m.Id_Movimiento AS id,
+        m.Id_Material AS materialId,
+        mat.Nombre_Descripcion AS material,
+        m.Tipo AS tipo,
+        m.Cantidad AS cantidad,
+        t.Denominacion AS departamento,
+        m.Id_Docente,
+        CONCAT(IFNULL(d.Nombre, ''), ' ', IFNULL(d.Apellido, '')) AS responsable,
+        m.Observacion AS observacion,
+        m.Fecha AS fecha
+      FROM movimiento m
+      LEFT JOIN material mat ON m.Id_Material = mat.Id_Material
+      LEFT JOIN taller t ON m.Id_Taller = t.Id_Taller
+      LEFT JOIN docente d ON m.Id_Docente = d.Id_Docente
+      ORDER BY m.Fecha DESC
     `;
-
-    try {
-        const [results] = await pool.query(query);
-        res.json(results);
-    } catch (err) {
-        console.error('Error al obtener reportes:', err);
-        res.status(500).send('Error al obtener los reportes de la base de datos');
-    }
+    const [rows] = await pool.query(query);
+    res.json(rows);
+  } catch (err) {
+    console.error('Error al obtener reportes:', err);
+    res.status(500).json({ message: 'Error al obtener reportes' });
+  }
 });
 
 // ----------------------------------------------------
