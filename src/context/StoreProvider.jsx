@@ -4,17 +4,17 @@ const StoreCtx = createContext();
 
 export function StoreProvider({ children }) {
     const [materials, setMaterials]   = useState([]);
-    const [teachers, setTeachers]     = useState([]);
-    const [movements, setMovements]   = useState([]);
-    const [talleres, setTalleres]     = useState([]);
-    const [rotations, setRotations]   = useState([]);
-    const [loading, setLoading]       = useState(true);
-    const [error, setError]           = useState(null);
+    const [teachers, setTeachers]    = useState([]);
+    const [movements, setMovements]  = useState([]);
+    const [talleres, setTalleres]    = useState([]);
+    const [rotations, setRotations]  = useState([]);
+    const [loading, setLoading]      = useState(true);
+    const [error, setError]          = useState(null);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-           const fetchMaterials = async () => {
+            const fetchMaterials = async () => {
                 const response = await fetch('/api/inventario/resumen');
                 if (!response.ok) throw new Error('Network response was not ok for materials');
                 const data = await response.json();
@@ -61,7 +61,6 @@ export function StoreProvider({ children }) {
             setTeachers(teachersData);
             setTalleres(talleresData);
             setRotations(rotationsData);
-
 
             /* Mapeo actualizado para capturar Id_Docente y nombre de responsable correctamente */
             const formattedMovements = reportesData.map(r => {
@@ -181,7 +180,6 @@ export function StoreProvider({ children }) {
     };
 
     const updateTeacher = async (id, patch) => {
-        // Limpia cualquier ID malformado (ej. "5:1" -> "5")
         const cleanId = String(id).includes(':') ? String(id).split(':')[0] : id;
 
         const response = await fetch(`/api/docentes/${cleanId}`, {
@@ -231,7 +229,6 @@ export function StoreProvider({ children }) {
         }
     };
 
-
     const addRotation = async (rotation) => {
         try {
             const response = await fetch('/api/rotaciones', {
@@ -279,8 +276,6 @@ export function StoreProvider({ children }) {
     };
     
     const registerMovement = async ({ materialId, movementType, quantity, responsible, observations, department }) => {
-        console.log('registerMovement llamado:', { materialId, movementType, quantity, responsible, department });
-        
         const originalMaterials = materials;
         const originalMovements = movements;
 
@@ -314,7 +309,7 @@ export function StoreProvider({ children }) {
                     const denom = (t.Denominacion || "").toLowerCase();
                     const turno = (t.Turno || "").toLowerCase();
                     const fullFormat1 = `${denom} (${turno})`.trim();
-                    const fullFormat2 = `${denom} - ${turno}`.trim();
+                    const fullFormat2 = `${denom} ${turno}`.trim();
                     
                     return (
                         String(t.Id_Taller) === depLower ||
@@ -391,7 +386,7 @@ export function StoreProvider({ children }) {
             if (targetDepartment) {
                 const taller = talleres.find(t => 
                     t.Id_Taller === Number(targetDepartment) ||
-                    `${t.Denominacion} - ${t.Turno}`.toLowerCase() === String(targetDepartment).toLowerCase() ||
+                    `${t.Denominacion} ${t.Turno}`.toLowerCase() === String(targetDepartment).toLowerCase() ||
                     `${t.Denominacion} (${t.Turno})`.toLowerCase() === String(targetDepartment).toLowerCase() ||
                     t.Denominacion.toLowerCase() === String(targetDepartment).toLowerCase()
                 );
@@ -418,8 +413,6 @@ export function StoreProvider({ children }) {
                 observations: observations || "",
                 idDocente: idDocente
             };
-
-            console.log('Enviando a /api/movimientos/requerimiento:', body);
 
             const response = await fetch('/api/movimientos/requerimiento', {
                 method: 'POST',

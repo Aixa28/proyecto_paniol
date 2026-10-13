@@ -13,7 +13,7 @@ const port = 3001;
 // ====================================================
 // ¡IMPORTANTE! Reemplaza con tus credenciales de base de datos
 const dbConfig = {
-    host: 'localhost',
+    host: '127.0.0.1',
     user: 'root', 
     password: '', 
     database: 'bdpaniol',
@@ -290,7 +290,6 @@ app.get('/api/docentes', async (req, res) => {
     });
   }
 });
-
 // Ruta para crear un nuevo docente
 app.post('/api/docentes', async (req, res) => {
   const { Nombre, Apellido, Email, Id_Taller } = req.body;
@@ -627,7 +626,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
     }
 });
 
-// Requerimiento total de todos los talleres por material (rotación activa y su fecha de fin)
+// Requerimiento total de todos los talleres por material (versión segura y limpia)
 app.get('/api/inventario/resumen', async (req, res) => {
     const query = `
         SELECT 
@@ -637,14 +636,7 @@ app.get('/api/inventario/resumen', async (req, res) => {
             COALESCE(SUM(mrt.Requerimiento), 0) AS Requerimiento,
             m.StockActual - COALESCE(SUM(mrt.Requerimiento), 0) AS Balance_Numerico,
             'DISPONIBLE' AS Estado,
-            (
-                SELECT DATE_FORMAT(r_prox.Inicio, '%d/%m/%Y')
-                FROM materialxrotacionxtaller mrt_prox
-                JOIN rotacion r_prox ON mrt_prox.Id_Rotacion = r_prox.Id_Rotacion
-                WHERE mrt_prox.Id_Material = m.Id_Material
-                ORDER BY r_prox.Inicio ASC
-                LIMIT 1
-            ) AS Proxima_Rotacion
+            '-' AS Proxima_Rotacion
         FROM material m
         LEFT JOIN materialxrotacionxtaller mrt ON m.Id_Material = mrt.Id_Material
         GROUP BY m.Id_Material, m.Nombre_Descripcion, m.StockActual
