@@ -4,15 +4,16 @@ import EditMaterialModal from "../Modals/EditMaterialModal";
 import DeleteMaterialModal from "../modals/DeleteMaterialModal";
 
 function badge(material) {
-    switch (material.Estado) {
-        case 'DISPONIBLE':
-            return { text: "Disponible", cls: "text-green-800 bg-green-100" };
-        case 'LIMITADO':
-            return { text: "Limitado", cls: "text-yellow-800 bg-yellow-100" };
-        case 'FALTANTE':
-            return { text: "Faltante", cls: "text-red-800 bg-red-100" };
-        default:
-            return { text: "Indefinido", cls: "text-gray-800 bg-gray-100" };
+    const stock = Number(material.StockActual || 0);
+    const req = Number(material.Requerimiento || 0);
+
+    // Evaluamos los tres estados tal como los pediste
+    if (stock < req) {
+        return { text: "Faltante", cls: "text-red-800 bg-red-100" };
+    } else if (stock === req) {
+        return { text: "Limitado", cls: "text-yellow-800 bg-yellow-100" };
+    } else {
+        return { text: "Disponible", cls: "text-green-800 bg-green-100" };
     }
 }
 
@@ -32,7 +33,6 @@ export default function InventoryTable({ rows }) {
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Stock Actual</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Requerimiento</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                    {/* NUEVA COLUMNA UBICADA ENTRE ESTADO Y ACCIONES */}
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Próxima Rotación</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                 </tr>
@@ -42,6 +42,8 @@ export default function InventoryTable({ rows }) {
                     const b = badge(m);
                     const faltante = m.Requerimiento - m.StockActual;
                     const title = faltante > 0 ? `Faltan ${faltante} unidades` : '';
+                    const esFaltante = Number(m.StockActual || 0) < Number(m.Requerimiento || 0);
+
                     return (
                     <tr key={m.Id_Material} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -57,9 +59,9 @@ export default function InventoryTable({ rows }) {
                         <span title={title} className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${b.cls}`}>{b.text}</span>
                         </td>
                         
-                        {/* NUEVA CELDA: Solo muestra la fecha si el estado es FALTANTE, de lo contrario muestra un guión */}
+                        {/* Muestra la fecha de la rotación únicamente si hay faltante real */}
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
-                            {m.Estado === 'FALTANTE' ? (m.Proxima_Rotacion || '-') : '-'}
+                            {esFaltante ? (m.Proxima_Rotacion || '-') : '-'}
                         </td>
 
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
