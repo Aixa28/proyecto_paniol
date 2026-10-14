@@ -626,7 +626,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
     }
 });
 
-// Requerimiento total de todos los talleres por material (con estado dinámico y próxima rotación)
+// Requerimiento total de todos los talleres por material (con cálculo de estados y próxima rotación)
 app.get('/api/inventario/resumen', async (req, res) => {
     const query = `
         SELECT 
@@ -635,10 +635,6 @@ app.get('/api/inventario/resumen', async (req, res) => {
             m.StockActual,
             COALESCE(SUM(mrt.Requerimiento), 0) AS Requerimiento,
             m.StockActual - COALESCE(SUM(mrt.Requerimiento), 0) AS Balance_Numerico,
-            CASE 
-                WHEN (m.StockActual - COALESCE(SUM(mrt.Requerimiento), 0)) < 0 THEN 'Faltante'
-                ELSE 'Disponible'
-            END AS Estado,
             (
                 SELECT DATE_FORMAT(Inicio, '%d/%m/%Y') 
                 FROM rotacion 
@@ -666,7 +662,6 @@ app.get('/api/inventario/resumen', async (req, res) => {
                 existing.StockActual += Number(item.StockActual);
                 existing.Requerimiento += Number(item.Requerimiento);
                 existing.Balance_Numerico = existing.StockActual - existing.Requerimiento;
-                existing.Estado = existing.Balance_Numerico < 0 ? 'Faltante' : 'Disponible';
 
                 if (item.Proxima_Rotacion_Fecha && (!existing.Proxima_Rotacion_Fecha || existing.Proxima_Rotacion_Fecha === '-')) {
                     existing.Proxima_Rotacion_Fecha = item.Proxima_Rotacion_Fecha;
@@ -674,17 +669,29 @@ app.get('/api/inventario/resumen', async (req, res) => {
             }
         }
 
-        // Devolvemos el resultado aplicando la regla de mostrar la fecha solo si hay faltante
+        // Formateamos el resultado final que espera el frontend
         const resultadosFinales = Array.from(map.values()).map(item => {
-            const tieneFaltante = Number(item.Balance_Numerico) < 0;
+            const stock = Number(item.StockActual || 0);
+            const req = Number(item.Requerimiento || 0);
+            
+            // Determinamos el estado para que coincida exactamente con el frontend
+            let estado = 'DISPONIBLE';
+            if (stock < req) {
+                estado = 'FALTANTE';
+            } else if (stock === req) {
+                estado = 'LIMITADO';
+            }
+
+            const esFaltante = estado === 'FALTANTE';
+
             return {
                 Id_Material: item.Id_Material,
                 Nombre_Descripcion: item.Nombre_Descripcion,
-                StockActual: item.StockActual,
-                Requerimiento: item.Requerimiento,
+                StockActual: stock,
+                Requerimiento: req,
                 Balance_Numerico: item.Balance_Numerico,
-                Estado: item.Estado,
-                Proxima_Rotacion: tieneFaltante ? (item.Proxima_Rotacion_Fecha || '-') : '-'
+                Estado: estado,
+                Proxima_Rotacion: esFaltante ? (item.Proxima_Rotacion_Fecha || '-') : '-'
             };
         });
 
