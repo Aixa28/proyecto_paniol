@@ -626,7 +626,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
     }
 });
 
-// Requerimiento total de todos los talleres por material (versión con agrupación por nombre limpio)
+// Requerimiento total de todos los talleres por material (con estado dinámico y próxima rotación)
 app.get('/api/inventario/resumen', async (req, res) => {
     const query = `
         SELECT 
@@ -635,8 +635,16 @@ app.get('/api/inventario/resumen', async (req, res) => {
             m.StockActual,
             COALESCE(SUM(mrt.Requerimiento), 0) AS Requerimiento,
             m.StockActual - COALESCE(SUM(mrt.Requerimiento), 0) AS Balance_Numerico,
-            'DISPONIBLE' AS Estado,
-            '-' AS Proxima_Rotacion
+            CASE 
+                WHEN (m.StockActual - COALESCE(SUM(mrt.Requerimiento), 0)) < 0 THEN 'Faltante'
+                ELSE 'Disponible'
+            END AS Estado,
+            (
+                SELECT DATE_FORMAT(Inicio, '%d/%m/%Y') 
+                FROM rotacion 
+                ORDER BY Inicio DESC 
+                LIMIT 1
+            ) AS Proxima_Rotacion_Fecha
         FROM material m
         LEFT JOIN materialxrotacionxtaller mrt ON m.Id_Material = mrt.Id_Material
         GROUP BY m.Id_Material, m.Nombre_Descripcion, m.StockActual
@@ -652,24 +660,41 @@ app.get('/api/inventario/resumen', async (req, res) => {
             const nombreLimpio = item.Nombre_Descripcion.trim().toLowerCase();
             
             if (!map.has(nombreLimpio)) {
-                // Si es la primera vez que aparece este material, lo guardamos clonándolo
                 map.set(nombreLimpio, { ...item });
             } else {
-                // Si ya existía otro con el mismo nombre, sumamos sus stocks y requerimientos
                 const existing = map.get(nombreLimpio);
                 existing.StockActual += Number(item.StockActual);
                 existing.Requerimiento += Number(item.Requerimiento);
                 existing.Balance_Numerico = existing.StockActual - existing.Requerimiento;
+                existing.Estado = existing.Balance_Numerico < 0 ? 'Faltante' : 'Disponible';
+
+                if (item.Proxima_Rotacion_Fecha && (!existing.Proxima_Rotacion_Fecha || existing.Proxima_Rotacion_Fecha === '-')) {
+                    existing.Proxima_Rotacion_Fecha = item.Proxima_Rotacion_Fecha;
+                }
             }
         }
 
-        const resultadosFinales = Array.from(map.values());
+        // Devolvemos el resultado aplicando la regla de mostrar la fecha solo si hay faltante
+        const resultadosFinales = Array.from(map.values()).map(item => {
+            const tieneFaltante = Number(item.Balance_Numerico) < 0;
+            return {
+                Id_Material: item.Id_Material,
+                Nombre_Descripcion: item.Nombre_Descripcion,
+                StockActual: item.StockActual,
+                Requerimiento: item.Requerimiento,
+                Balance_Numerico: item.Balance_Numerico,
+                Estado: item.Estado,
+                Proxima_Rotacion: tieneFaltante ? (item.Proxima_Rotacion_Fecha || '-') : '-'
+            };
+        });
+
         res.json(resultadosFinales);
     } catch (err) {
         console.error('Error al obtener resumen de inventario:', err);
         res.status(500).send('Error al obtener el resumen del inventario');
     }
 });
+
 // ====================================================
 // 4. INICIAR EL SERVIDOR
 // ====================================================
