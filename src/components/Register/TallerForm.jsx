@@ -13,12 +13,18 @@ export default function TallerForm() {
 
     const onSubmit = async (e) => {
         e.preventDefault();
+        
+        if (!denominacion.trim() || !anio) {
+            setMessage({ type: "error", text: "Por favor complete todos los campos obligatorios, incluyendo el año del curso." });
+            return;
+        }
+
         setLoading(true);
         setMessage(null);
 
         try {
             await addTaller({
-                Denominacion: denominacion,
+                Denominacion: denominacion.trim(),
                 Turno: turno,
                 anio: anio
             });
@@ -97,7 +103,7 @@ export default function TallerForm() {
                     disabled={loading}
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-md text-sm transition-colors disabled:opacity-50 mt-4"
                 >
-                    {loading ? "Guardando..." : "Registrador Taller"}
+                    {loading ? "Guardando..." : "Registrar Taller"}
                 </button>
             </form>
         </div>

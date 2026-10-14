@@ -8,26 +8,28 @@ import { toast } from 'sonner';
 export default function TalleresTable() {
     const { talleres, teachers, removeTaller } = useStore();
     const [q, setQ] = useState("");
-    const [edit, setEdit] = useState(null); // Guarda el taller a editar
-    const [del, setDel] = useState(null);   // Guarda el taller a eliminar
+    const [edit, setEdit] = useState(null); 
+    const [del, setDel] = useState(null);   
 
     const getTeacherName = (idTaller) => {
-        const teacher = teachers.find(t => t.Id_Taller === idTaller);
+        const teacher = teachers.find(t => Number(t.Id_Taller) === Number(idTaller));
         return teacher ? `${teacher.Nombre} ${teacher.Apellido}` : 'Sin asignar';
     };
-    //Cambiando para que me devuelva mañana en vez de maniana
+
     const displayTurno = (rawTurno) => {
-    if (!rawTurno) return '';
-    if (rawTurno.toLowerCase() === 'maniana' || rawTurno.toLowerCase() === 'manana') {
-        return 'Mañana';
-    }
-    return rawTurno;
-};
+        if (!rawTurno) return '';
+        if (rawTurno.toLowerCase() === 'maniana' || rawTurno.toLowerCase() === 'manana') {
+            return 'Mañana';
+        }
+        return rawTurno;
+    };
 
     const rows = talleres
         .filter(t =>
             t.Denominacion.toLowerCase().includes(q.toLowerCase()) ||
-            getTeacherName(t.Id_Taller).toLowerCase().includes(q.toLowerCase())
+            getTeacherName(t.Id_Taller).toLowerCase().includes(q.toLowerCase()) ||
+            String(t.Anio || t.anio || "").toLowerCase().includes(q.toLowerCase()) ||
+            displayTurno(t.Turno).toLowerCase().includes(q.toLowerCase())
         )
         .sort((a, b) => a.Denominacion.localeCompare(b.Denominacion));
 
@@ -53,7 +55,7 @@ export default function TalleresTable() {
                     <input
                         value={q}
                         onChange={e => setQ(e.target.value)}
-                        placeholder="Buscar por nombre, turno o profesor…"
+                        placeholder="Buscar por nombre, año, turno o profesor…"
                         className="block w-72 pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     />
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -86,7 +88,7 @@ export default function TalleresTable() {
                                 return (
                                 <tr key={t.Id_Taller} className="hover:bg-gray-50">
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{t.Denominacion}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">{t.Anio || t.anio}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">{t.Anio || t.anio || "-"}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">{displayTurno(t.Turno)}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{teacherName}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">

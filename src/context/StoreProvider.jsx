@@ -15,30 +15,28 @@ export function StoreProvider({ children }) {
         setLoading(true);
         try {
            const fetchMaterials = async () => {
-    const response = await fetch('/api/inventario/resumen');
-    if (!response.ok) throw new Error('Network response was not ok for materials');
-    const data = await response.json();
+                const response = await fetch('/api/inventario/resumen');
+                if (!response.ok) throw new Error('Network response was not ok for materials');
+                const data = await response.json();
 
-    // Agrupamos estrictamente por el nombre del material limpio para fusionar duplicados sin importar el ID
-    const map = new Map();
-    data.forEach(item => {
-        const nombreLimpio = item.Nombre_Descripcion ? item.Nombre_Descripcion.trim().toLowerCase() : '';
-        const key = nombreLimpio || item.Id_Material; // Usamos el nombre como llave principal
+                const map = new Map();
+                data.forEach(item => {
+                    const nombreLimpio = item.Nombre_Descripcion ? item.Nombre_Descripcion.trim().toLowerCase() : '';
+                    const key = nombreLimpio || item.Id_Material;
 
-        if (map.has(key)) {
-            const existing = map.get(key);
-            existing.StockActual = Number(existing.StockActual || 0) + Number(item.StockActual || 0);
-            if (item.Requerimiento !== undefined) {
-                existing.Requerimiento = Number(existing.Requerimiento || 0) + Number(item.Requerimiento || 0);
-            }
-            // Actualizamos también el balance numérico si lo calcula la vista/frontend
-            existing.Balance_Numerico = Number(existing.StockActual || 0) - Number(existing.Requerimiento || 0);
-        } else {
-            map.set(key, { ...item });
-        }
-    });
-    return Array.from(map.values());
-};
+                    if (map.has(key)) {
+                        const existing = map.get(key);
+                        existing.StockActual = Number(existing.StockActual || 0) + Number(item.StockActual || 0);
+                        if (item.Requerimiento !== undefined) {
+                            existing.Requerimiento = Number(existing.Requerimiento || 0) + Number(item.Requerimiento || 0);
+                        }
+                        existing.Balance_Numerico = Number(existing.StockActual || 0) - Number(existing.Requerimiento || 0);
+                    } else {
+                        map.set(key, { ...item });
+                    }
+                });
+                return Array.from(map.values());
+            };
 
             const [materialsData, teachersData, talleresData, reportesData, rotationsData] = await Promise.all([
                 fetchMaterials(),
@@ -65,28 +63,51 @@ export function StoreProvider({ children }) {
             setTalleres(talleresData);
             setRotations(rotationsData);
 
-            /* Mapeo actualizado para capturar Id_Docente y nombre de responsable correctamente */
             const formattedMovements = reportesData.map(r => {
-                // Captura el ID o el string que venga en la API
-                const docId = r.Id_Docente ?? r.id_docente ?? r.idDocente ?? r.responsable;
+                // 1. Resolver el texto del Taller/Departamento
+                let depLabel = "-";
+                let tallerObj = null;
 
-                // Busca al docente por ID o por coincidencia de texto
-                const teacher = teachersData.find(t => {
-                    if (!docId) return false;
-                    const target = String(docId).trim().toLowerCase();
-                    const fullName = `${t.Nombre} ${t.Apellido}`.trim().toLowerCase();
-                    const altFullName = `${t.Apellido} ${t.Nombre}`.trim().toLowerCase();
-                    
-                    return (
-                        t.Id_Docente === Number(docId) || 
-                        fullName === target ||
-                        altFullName === target
-                    );
-                });
+                if (r.Id_Taller) {
+                    tallerObj = talleresData.find(t => Number(t.Id_Taller) === Number(r.Id_Taller));
+                }
+                if (!tallerObj && r.taller_nombre) {
+                    tallerObj = talleresData.find(t => t.Denominacion.toLowerCase() === r.taller_nombre.toLowerCase());
+                }
 
-                const teacherName = teacher 
-                    ? `${teacher.Nombre} ${teacher.Apellido}` 
-                    : (r.responsable && r.responsable !== "NULL" ? r.responsable : "-");
+                if (tallerObj) {
+                    const anioVal = tallerObj.Anio || tallerObj.anio;
+                    const anioStr = anioVal ? `${anioVal}° - ` : "";
+                    const turnoStr = tallerObj.Turno ? ` (${tallerObj.Turno})` : "";
+                    depLabel = `${anioStr}${tallerObj.Denominacion}${turnoStr}`;
+                } else if (r.taller_nombre) {
+                    const anioStr = r.taller_anio ? `${r.taller_anio}° - ` : "";
+                    const turnoStr = r.taller_turno ? ` (${r.taller_turno})` : "";
+                    depLabel = `${anioStr}${r.taller_nombre}${turnoStr}`;
+                }
+
+                // 2. Resolver el nombre del Responsable (Docente)
+                let teacherName = "-";
+                const docId = r.Id_Docente || r.id_docente || r.idDocente;
+                
+                if (docId) {
+                    const teacher = teachersData.find(t => Number(t.Id_Docente) === Number(docId));
+                    if (teacher) {
+                        teacherName = `${teacher.Nombre} ${teacher.Apellido}`.trim();
+                    }
+                }
+                
+                if (teacherName === "-" && r.responsable && r.responsable.trim() !== "") {
+                    teacherName = r.responsable.trim();
+                }
+
+                // Fallback: Si el movimiento no tiene docente directo pero el taller tiene un profesor asignado
+                if (teacherName === "-" && tallerObj) {
+                    const teacherByTaller = teachersData.find(t => Number(t.Id_Taller) === Number(tallerObj.Id_Taller));
+                    if (teacherByTaller) {
+                        teacherName = `${teacherByTaller.Nombre} ${teacherByTaller.Apellido}`.trim();
+                    }
+                }
 
                 return {
                     id: r.id,
@@ -94,7 +115,7 @@ export function StoreProvider({ children }) {
                     materialName: r.material,
                     type: r.tipo,
                     quantity: r.cantidad,
-                    department: r.departamento,
+                    department: depLabel.replace(/maniana|manana/gi, 'Mañana'),
                     responsible: teacherName, 
                     observations: r.observacion,
                     date: new Date(r.fecha)
@@ -121,7 +142,6 @@ export function StoreProvider({ children }) {
         return { total, adequate, low, critical };
     }, [materials]);
 
-    // Acciones
     const addMaterial = async (name, quantity) => {
         const newMaterial = { Nombre_Descripcion: name, StockActual: Number(quantity) };
         const response = await fetch('/api/materiales', {
@@ -278,7 +298,7 @@ export function StoreProvider({ children }) {
         }
     };
     
-    const registerMovement = async ({ materialId, movementType, quantity, responsible, observations, department }) => {
+   const registerMovement = async ({ materialId, movementType, quantity, responsible, observations, department }) => {
         const originalMaterials = materials;
         const originalMovements = movements;
 
@@ -296,51 +316,42 @@ export function StoreProvider({ children }) {
             ? materialToUpdate.StockActual + quantity
             : materialToUpdate.StockActual - quantity;
 
-        const updatedMaterials = materials.map(m =>
-            m.Id_Material === materialId ? { ...m, StockActual: newStock } : m
-        );
-        setMaterials(updatedMaterials);
+        setMaterials(materials.map(m => m.Id_Material === materialId ? { ...m, StockActual: newStock } : m));
 
         try {
             let idTaller = null;
             let idDocente = null;
 
-            // 1. Búsqueda flexible de Taller
-            if (department) {
+            // Búsqueda robusta del Taller ID
+           // Búsqueda robusta del Taller ID
+            if (department && department !== "Seleccionar...") {
                 const depLower = String(department).trim().toLowerCase();
+                
+                // Si el texto incluye un guion (ej: "Mecánica - Juan Pérez"), nos quedamos con la parte del taller
+                const cleanDep = depLower.split('-')[0].trim();
+
                 const taller = talleres.find(t => {
                     const denom = (t.Denominacion || "").toLowerCase();
+                    const anio = t.Anio || t.anio || "";
                     const turno = (t.Turno || "").toLowerCase();
-                    const fullFormat1 = `${denom} (${turno})`.trim();
-                    const fullFormat2 = `${denom} ${turno}`.trim();
-                    
+
                     return (
-                        String(t.Id_Taller) === depLower ||
-                        denom === depLower ||
-                        depLower.includes(denom) ||
-                        fullFormat1 === depLower ||
-                        fullFormat2 === depLower
+                        String(t.Id_Taller) === cleanDep ||
+                        denom === cleanDep ||
+                        cleanDep.includes(denom) ||
+                        denom.includes(cleanDep)
                     );
                 });
                 if (taller) idTaller = taller.Id_Taller;
             }
 
-            // 2. Búsqueda flexible de Docente
-            if (responsible) {
+            // Búsqueda robusta del Docente ID
+            if (responsible && responsible !== "Todos" && responsible !== "Sin asignar") {
                 const respLower = String(responsible).trim().toLowerCase();
                 const teacher = teachers.find(t => {
-                    const nom = (t.Nombre || "").toLowerCase();
-                    const ape = (t.Apellido || "").toLowerCase();
-                    const fullName = `${nom} ${ape}`.trim();
-                    const altFullName = `${ape} ${nom}`.trim();
-
-                    return (
-                        String(t.Id_Docente) === respLower ||
-                        fullName === respLower ||
-                        altFullName === respLower ||
-                        respLower.includes(nom) ||
-                        respLower.includes(ape)
-                    );
+                    const fullName = `${t.Nombre} ${t.Apellido}`.trim().toLowerCase();
+                    const altFullName = `${t.Apellido} ${t.Nombre}`.trim().toLowerCase();
+                    return String(t.Id_Docente) === respLower || fullName === respLower || altFullName === respLower || respLower.includes(t.Nombre.toLowerCase());
                 });
                 if (teacher) idDocente = teacher.Id_Docente;
             }
@@ -454,4 +465,6 @@ export function StoreProvider({ children }) {
     return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;
 }
 
-export const useStore = () => useContext(StoreCtx);
+export function useStore() {
+    return useContext(StoreCtx);
+}

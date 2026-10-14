@@ -1,17 +1,10 @@
-// server.js (Reemplaza tu archivo api.txt)
-
 import express from 'express';
-// Usamos mysql2/promise para la sintaxis async/await y Pools de conexión.
 import mysql from 'mysql2/promise'; 
 import cors from 'cors';
 
 const app = express();
 const port = 3001; 
 
-// ====================================================
-// 1. CONFIGURACIÓN DE CONEXIÓN (Pool)
-// ====================================================
-// ¡IMPORTANTE! Reemplaza con tus credenciales de base de datos
 const dbConfig = {
     host: '127.0.0.1',
     user: 'root', 
@@ -22,10 +15,8 @@ const dbConfig = {
     queueLimit: 0
 };
 
-// Crea un Pool de conexiones. Esto es más eficiente que db.createConnection()
 const pool = mysql.createPool(dbConfig); 
 
-// Comprueba la conexión al iniciar el servidor
 (async () => {
     try {
         await pool.getConnection();
@@ -35,18 +26,9 @@ const pool = mysql.createPool(dbConfig);
     }
 })();
 
-// ====================================================
-// 2. MIDDLEWARES
-// ====================================================
 app.use(cors()); 
 app.use(express.json()); 
 
-
-// ====================================================
-// 3. RUTAS API (Actualizadas con async/await y Pool)
-// ====================================================
-
-// Ruta de prueba
 app.get('/', (req, res) => {
   res.send('Servidor Express funcionando.');
 });
@@ -54,12 +36,6 @@ app.get('/', (req, res) => {
 // ----------------------------------------------------
 // RUTAS DE INVENTARIO Y ESTADO DINÁMICO
 // ----------------------------------------------------
-
-/**
- * RUTA CLAVE: Obtiene el estado dinámico de los materiales para un Taller y Rotación específicos.
- * Consulta la VISTA v_dashboard_paniol creada en el SQL.
- * EJEMPLO: GET http://localhost:3001/api/inventario/estado/1/1
- */
 app.get('/api/inventario/estado/:idTaller/:idRotacion', async (req, res) => {
     const { idTaller, idRotacion } = req.params;
 
@@ -70,34 +46,26 @@ app.get('/api/inventario/estado/:idTaller/:idRotacion', async (req, res) => {
             StockActual,
             Requerimiento,
             Balance_Numerico,
-            Estado  /* ESTE CAMPO ES DINÁMICO */
+            Estado 
         FROM v_dashboard_paniol 
         WHERE Id_Taller = ? AND Id_Rotacion = ?
     `;
 
     try {
-        // pool.query usa el método promisificado
         const [resultados] = await pool.query(query, [idTaller, idRotacion]);
-
         if (resultados.length === 0) {
-            // Se puede devolver un 200 con array vacío, o un 404 si es estricto
             return res.json([]); 
         }
-
         res.json(resultados);
-
     } catch (error) {
         console.error('Error al obtener el estado del inventario:', error);
         res.status(500).json({ mensaje: "Error interno del servidor al obtener el inventario." });
     }
 });
 
-
 // ----------------------------------------------------
 // RUTAS DE MATERIALES (CRUD)
 // ----------------------------------------------------
-
-// Ruta para obtener todos los materiales
 app.get('/api/materiales', async (req, res) => {
   try {
     const [results] = await pool.query('SELECT * FROM material');
@@ -108,10 +76,8 @@ app.get('/api/materiales', async (req, res) => {
   }
 });
 
-// Ruta para crear un nuevo material (o sumar stock si ya existe)
 app.post('/api/materiales', async (req, res) => {
   let { Nombre_Descripcion, StockActual } = req.body;
-  
   Nombre_Descripcion = Nombre_Descripcion ? Nombre_Descripcion.trim() : '';
 
   const query = `
@@ -121,32 +87,23 @@ app.post('/api/materiales', async (req, res) => {
   `;
   
   try {
-    const [result] = await pool.query(query, [Nombre_Descripcion, StockActual, StockActual]);
-    
-    // Si ya existía, buscamos el material actualizado para devolverlo completo al frontend
+    await pool.query(query, [Nombre_Descripcion, StockActual, StockActual]);
     const [rows] = await pool.query('SELECT * FROM material WHERE Nombre_Descripcion = ?', [Nombre_Descripcion]);
-    const materialGuardado = rows[0];
-
-    // Devolvemos el objeto completo que el frontend espera recibir
-    res.status(201).json(materialGuardado);
+    res.status(201).json(rows[0]);
   } catch (err) {
     console.error('Error al crear o actualizar material:', err);
     res.status(500).send('Error al guardar el material en la base de datos');
   }
 });
 
-// Ruta para eliminar un material
 app.delete('/api/materiales/:id', async (req, res) => {
   const { id } = req.params;
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    
-    // Primero eliminar registros relacionados
     await connection.query('DELETE FROM materialxrotacionxtaller WHERE Id_Material = ?', [id]);
     await connection.query('DELETE FROM movimiento WHERE Id_Material = ?', [id]);
     
-    // Luego eliminar el material
     const [result] = await connection.query('DELETE FROM material WHERE Id_Material = ?', [id]);
     if (result.affectedRows === 0) {
       await connection.rollback();
@@ -164,8 +121,6 @@ app.delete('/api/materiales/:id', async (req, res) => {
   }
 });
 
-
-// Ruta para actualizar un material
 app.put('/api/materiales/:id', async (req, res) => {
   const { id } = req.params;
   const { Nombre_Descripcion, StockActual } = req.body;
@@ -185,9 +140,6 @@ app.put('/api/materiales/:id', async (req, res) => {
 // ----------------------------------------------------
 // RUTAS DE TALLERES Y DOCENTES (CRUD)
 // ----------------------------------------------------
-
-// Ruta para obtener todos los talleres
-
 app.get('/api/talleres', async (req, res) => {
   try {
     const [results] = await pool.query('SELECT * FROM taller');
@@ -198,11 +150,8 @@ app.get('/api/talleres', async (req, res) => {
   }
 });
 
-// Ruta para crear un nuevo taller
 app.post('/api/talleres', async (req, res) => {
     const { Denominacion, Turno, anio } = req.body;
-
-    // 'Anio' debe ir con mayúscula para coincidir con la base de datos:
     const query = 'INSERT INTO taller (Denominacion, Turno, Anio) VALUES (?, ?, ?)';
     
     try {
@@ -224,14 +173,13 @@ app.post('/api/talleres', async (req, res) => {
     }
 });
 
-// Ruta para actualizar un taller
 app.put('/api/talleres/:id', async (req, res) => {
     const { id } = req.params;
+    const cleanId = String(id).split(':')[0];
     const { Denominacion, Turno, anio } = req.body;
-    // Se cambia 'anio' por 'Anio' en la sentencia SQL
     const query = 'UPDATE taller SET Denominacion = ?, Turno = ?, Anio = ? WHERE Id_Taller = ?';
     try {
-        const [result] = await pool.query(query, [Denominacion, Turno, anio || null, id]);
+        const [result] = await pool.query(query, [Denominacion, Turno, anio || null, cleanId]);
         if (result.affectedRows === 0) {
             return res.status(404).send('No se encontró el taller con el ID proporcionado');
         }
@@ -242,24 +190,17 @@ app.put('/api/talleres/:id', async (req, res) => {
     }
 });
 
-// Ruta para eliminar un taller
 app.delete('/api/talleres/:id', async (req, res) => {
     const { id } = req.params;
+    const cleanId = String(id).split(':')[0];
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
+        await connection.query('UPDATE movimiento SET Id_Taller = NULL WHERE Id_Taller = ?', [cleanId]);
+        await connection.query('DELETE FROM materialxrotacionxtaller WHERE Id_Taller = ?', [cleanId]);
+        await connection.query('UPDATE docente SET Id_Taller = NULL WHERE Id_Taller = ?', [cleanId]);
 
-        // Desvincular movimientos (preservar historial)
-        await connection.query('UPDATE movimiento SET Id_Taller = NULL WHERE Id_Taller = ?', [id]);
-
-        // Eliminar requerimientos asociados
-        await connection.query('DELETE FROM materialxrotacionxtaller WHERE Id_Taller = ?', [id]);
-
-        // Desvincular docentes
-        await connection.query('UPDATE docente SET Id_Taller = NULL WHERE Id_Taller = ?', [id]);
-
-        // Eliminar el taller
-        const [result] = await connection.query('DELETE FROM taller WHERE Id_Taller = ?', [id]);
+        const [result] = await connection.query('DELETE FROM taller WHERE Id_Taller = ?', [cleanId]);
         if (result.affectedRows === 0) {
             await connection.rollback();
             return res.status(404).send('No se encontró el taller');
@@ -276,21 +217,16 @@ app.delete('/api/talleres/:id', async (req, res) => {
     }
 });
 
-// Ruta para obtener todos los docentes (con trampa para ver el error)
 app.get('/api/docentes', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM docente');
     res.json(rows);
   } catch (err) {
-    console.error('🔥 ERROR CRítico EN /api/docentes:', err);
-    res.status(500).json({ 
-      error: true, 
-      mensaje: err.message, 
-      sqlMessage: err.sqlMessage 
-    });
+    console.error('🔥 ERROR CRÍTICO EN /api/docentes:', err);
+    res.status(500).json({ error: true, mensaje: err.message });
   }
 });
-// Ruta para crear un nuevo docente
+
 app.post('/api/docentes', async (req, res) => {
   const { Nombre, Apellido, Email, Id_Taller } = req.body;
   const query = 'INSERT INTO docente (Nombre, Apellido, Email, Id_Taller) VALUES (?, ?, ?, ?)';
@@ -304,18 +240,45 @@ app.post('/api/docentes', async (req, res) => {
   }
 });
 
-// Ruta para actualizar un docente
+app.put('/api/docentes/:id', async (req, res) => {
+  const { id } = req.params;
+  const cleanId = String(id).split(':')[0]; 
+  let { Nombre, Apellido, Email, Id_Taller } = req.body;
+
+  try {
+    const query = `
+      UPDATE docente 
+      SET Nombre = ?, Apellido = ?, Email = ?, Id_Taller = ?
+      WHERE Id_Docente = ?
+    `;
+    const [result] = await pool.query(query, [
+      Nombre, 
+      Apellido, 
+      Email || '', 
+      Id_Taller !== "" && Id_Taller !== null ? Number(Id_Taller) : null, 
+      cleanId
+    ]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Docente no encontrado" });
+    }
+
+    res.json({ message: "Docente actualizado correctamente" });
+  } catch (err) {
+    console.error("Error al actualizar docente:", err);
+    res.status(500).json({ message: "Error interno al actualizar docente" });
+  }
+});
+
 app.delete('/api/docentes/:id', async (req, res) => {
   const { id } = req.params;
+  const cleanId = String(id).split(':')[0];
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
+    await connection.query('UPDATE movimiento SET Id_Docente = NULL WHERE Id_Docente = ?', [cleanId]);
 
-    // Primero desvincular los movimientos (poner Id_Docente en null)
-    await connection.query('UPDATE movimiento SET Id_Docente = NULL WHERE Id_Docente = ?', [id]);
-
-    // Luego eliminar el docente
-    const [result] = await connection.query('DELETE FROM docente WHERE Id_Docente = ?', [id]);
+    const [result] = await connection.query('DELETE FROM docente WHERE Id_Docente = ?', [cleanId]);
     if (result.affectedRows === 0) {
       await connection.rollback();
       return res.status(404).send('No se encontró el docente');
@@ -332,28 +295,9 @@ app.delete('/api/docentes/:id', async (req, res) => {
   }
 });
 
-// Ruta para eliminar un docente
-app.delete('/api/docentes/:id', async (req, res) => {
-  const { id } = req.params;
-  const query = 'DELETE FROM docente WHERE Id_Docente = ?';
-  try {
-    const [result] = await pool.query(query, [id]);
-    if (result.affectedRows === 0) {
-      res.status(404).send('No se encontró el docente con el ID proporcionado');
-      return;
-    }
-    res.status(200).send('Docente eliminado exitosamente');
-  } catch (err) {
-    console.error('Error al eliminar docente:', err);
-    res.status(500).send('Error al eliminar el docente de la base de datos');
-  }
-});
-
 // ----------------------------------------------------
 // RUTAS DE ROTACIONES (CRUD)
 // ----------------------------------------------------
-
-// Ruta para obtener todas las rotaciones
 app.get('/api/rotaciones', async (req, res) => {
     try {
         const [results] = await pool.query('SELECT * FROM rotacion ORDER BY Inicio DESC');
@@ -364,27 +308,25 @@ app.get('/api/rotaciones', async (req, res) => {
     }
 });
 
-// Ruta para crear una nueva rotación
 app.post('/api/rotaciones', async (req, res) => {
     const { Inicio, Final } = req.body;
     const query = 'INSERT INTO rotacion (Inicio, Final) VALUES (?, ?)';
     try {
         const [result] = await pool.query(query, [Inicio, Final]);
-        const newRotation = { Id_Rotacion: result.insertId, Inicio, Final };
-        res.status(201).json(newRotation);
+        res.status(201).json({ Id_Rotacion: result.insertId, Inicio, Final });
     } catch (err) {
         console.error('Error al crear rotación:', err);
         res.status(500).send('Error al guardar la rotación en la base de datos');
     }
 });
 
-// Ruta para actualizar una rotación
 app.put('/api/rotaciones/:id', async (req, res) => {
     const { id } = req.params;
+    const cleanId = String(id).split(':')[0];
     const { Inicio, Final } = req.body;
     const query = 'UPDATE rotacion SET Inicio = ?, Final = ? WHERE Id_Rotacion = ?';
     try {
-        const [result] = await pool.query(query, [Inicio, Final, id]);
+        const [result] = await pool.query(query, [Inicio, Final, cleanId]);
         if (result.affectedRows === 0) {
             return res.status(404).send('No se encontró la rotación con el ID proporcionado');
         }
@@ -395,12 +337,12 @@ app.put('/api/rotaciones/:id', async (req, res) => {
     }
 });
 
-// Ruta para eliminar una rotación
 app.delete('/api/rotaciones/:id', async (req, res) => {
     const { id } = req.params;
+    const cleanId = String(id).split(':')[0];
     const query = 'DELETE FROM rotacion WHERE Id_Rotacion = ?';
     try {
-        const [result] = await pool.query(query, [id]);
+        const [result] = await pool.query(query, [cleanId]);
         if (result.affectedRows === 0) {
             return res.status(404).send('No se encontró la rotación con el ID proporcionado');
         }
@@ -417,8 +359,6 @@ app.delete('/api/rotaciones/:id', async (req, res) => {
 // ----------------------------------------------------
 // RUTA DE REPORTES
 // ----------------------------------------------------
-
-// cambiamos que se muestre la denominación junto con el turno para diferenciarlos claramente
 app.get('/api/reportes', async (req, res) => {
   try {
     const query = `
@@ -428,8 +368,13 @@ app.get('/api/reportes', async (req, res) => {
         mat.Nombre_Descripcion AS material,
         m.Tipo AS tipo,
         m.Cantidad AS cantidad,
-        t.Denominacion AS departamento,
+        m.Id_Taller,
+        t.Denominacion AS taller_nombre,
+        t.Anio AS taller_anio,
+        t.Turno AS taller_turno,
         m.Id_Docente,
+        d.Nombre AS docente_nombre,
+        d.Apellido AS docente_apellido,
         CONCAT(IFNULL(d.Nombre, ''), ' ', IFNULL(d.Apellido, '')) AS responsable,
         m.Observacion AS observacion,
         m.Fecha AS fecha
@@ -457,7 +402,6 @@ app.post('/api/movimientos', async (req, res) => {
     try {
         await connection.beginTransaction();
 
-        // 1. Insertar en la tabla de movimientos
         const insertMovementQuery = `
             INSERT INTO movimiento (Id_Material, Tipo, Cantidad, Id_Taller, Id_Docente, Observacion, Fecha)
             VALUES (?, ?, ?, ?, ?, ?, NOW())
@@ -466,13 +410,12 @@ app.post('/api/movimientos', async (req, res) => {
             materialId,
             movementType,
             quantity,
-            idTaller, // Puede ser null para ingresos
-            idDocente, // Puede ser null para ingresos
+            idTaller,
+            idDocente,
             observations
         ]);
         const newMovementId = movementResult.insertId;
 
-        // 2. Actualizar el stock en la tabla de materiales
         const updateStockQuery = `
             UPDATE material
             SET StockActual = StockActual ${movementType === 'Ingreso' ? '+' : '-'} ?
@@ -480,19 +423,13 @@ app.post('/api/movimientos', async (req, res) => {
         `;
         await connection.query(updateStockQuery, [quantity, materialId]);
 
-        // 3. Si es un Egreso, actualizar el requerimiento en la tabla de planificación
         if (movementType === 'Egreso' && idTaller) {
-            // Buscar la rotación activa
             const [rotations] = await connection.query(
                 'SELECT Id_Rotacion FROM rotacion WHERE CURDATE() BETWEEN Inicio AND Final LIMIT 1'
             );
 
             if (rotations.length > 0) {
                 const idRotacion = rotations[0].Id_Rotacion;
-
-                // Insertar o actualizar el requerimiento.
-                // Si la combinación de taller, rotación y material ya existe, suma la cantidad al requerimiento.
-                // Si no existe, inserta un nuevo registro.
                 const updateRequirementQuery = `
                     INSERT INTO materialxrotacionxtaller (Id_Taller, Id_Rotacion, Id_Material, Fecha, Requerimiento)
                     VALUES (?, ?, ?, CURDATE(), ?)
@@ -502,14 +439,8 @@ app.post('/api/movimientos', async (req, res) => {
             }
         }
         
-        // 4. Confirmar la transacción
         await connection.commit();
-
-        res.status(201).json({
-            id: newMovementId,
-            message: 'Movimiento registrado y stock actualizado correctamente.'
-        });
-
+        res.status(201).json({ id: newMovementId, message: 'Movimiento registrado correctamente.' });
     } catch (error) {
         await connection.rollback();
         console.error('Error al registrar movimiento:', error);
@@ -519,43 +450,23 @@ app.post('/api/movimientos', async (req, res) => {
     }
 });
 
-// ----------------------------------------------------
-// RUTA PARA CAMBIO DE REQUERIMIENTO
-// ----------------------------------------------------
-// En tu backend (Node.js)
 app.post('/api/movimientos/requerimiento', async (req, res) => {
-    // Usamos 'let' para idDocente para permitir su reasignación si viene nulo
     let { materialId, idTaller, newRequirement, observations, idDocente } = req.body;
     const connection = await pool.getConnection();
 
     try {
         await connection.beginTransaction();
 
-        // si el id del Docente viene nulo7falso pero tenemos el id de Taller, lo buscamos en la base de datos
         if (!idDocente && idTaller) {
-            // buscamos en la tabla docente por el id del taller asignado
             const [docenteResult] = await connection.query(
                 'SELECT Id_Docente FROM docente WHERE Id_Taller = ? LIMIT 1',
                 [idTaller]
             );
-
             if (docenteResult.length > 0) {
                 idDocente = docenteResult[0].Id_Docente;
-            } else {
-                // si la relación está en la tabla taller
-                const [tallerResult] = await connection.query(
-                    'SELECT Id_Docente FROM taller WHERE Id_Taller = ? LIMIT 1',
-                    [idTaller]
-                );
-                if (tallerResult.length > 0 && tallerResult[0].Id_Docente) {
-                    idDocente = tallerResult[0].Id_Docente;
-                }
             }
         }
 
-        console.log("Datos recibidos en backend:", { materialId, idTaller, newRequirement, idDocente });
-
-        // bscar la rotación activa (o la más reciente como fallback)
         let [rotations] = await connection.query(
             'SELECT Id_Rotacion FROM rotacion WHERE CURDATE() BETWEEN Inicio AND Final LIMIT 1'
         );
@@ -572,17 +483,6 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
 
         const idRotacion = rotations[0].Id_Rotacion;
 
-        // obtener el requerimiento actual para calcular la diferencia
-        const [currentRequirementResult] = await connection.query(
-            `SELECT Requerimiento FROM materialxrotacionxtaller 
-             WHERE Id_Material = ? AND Id_Taller = ? AND Id_Rotacion = ?`,
-            [materialId, idTaller, idRotacion]
-        );
-        
-        const currentRequirement = currentRequirementResult.length > 0 ? currentRequirementResult[0].Requerimiento : 0;
-        const quantityChange = newRequirement - currentRequirement;
-
-        // insertar en movimientos para auditoría (ya con idDocente resuelto)
         const insertMovementQuery = `
             INSERT INTO movimiento (Id_Material, Tipo, Cantidad, Id_Taller, Id_Docente, Observacion, Fecha)
             VALUES (?, 'Cambio de Requerimiento', ?, ?, ?, ?, NOW())
@@ -594,39 +494,27 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
             idDocente || null, 
             observations
         ]);
-        const newMovementId = movementResult.insertId;
 
-        // actualizar el requerimiento en la tabla intermedia
         const updateRequirementQuery = `
             INSERT INTO materialxrotacionxtaller (Id_Taller, Id_Rotacion, Id_Material, Fecha, Requerimiento)
             VALUES (?, ?, ?, CURDATE(), ?)
             ON DUPLICATE KEY UPDATE 
-                Requerimiento = Requerimiento + VALUES(Requerimiento), 
+                Requerimiento = VALUES(Requerimiento), 
                 Fecha = CURDATE()
         `;
         await connection.query(updateRequirementQuery, [idTaller, idRotacion, materialId, newRequirement]);
         
-        // confirmar la transacción
         await connection.commit();
-
-        res.status(201).json({
-            id: newMovementId,
-            message: 'Requerimiento actualizado y movimiento registrado correctamente.'
-        });
-
+        res.status(201).json({ id: movementResult.insertId, message: 'Requerimiento actualizado.' });
     } catch (error) {
         await connection.rollback();
         console.error('Error al cambiar el requerimiento:', error);
-        res.status(500).json({ 
-            mensaje: 'Error interno del servidor al cambiar el requerimiento.', 
-            detalle: error.message 
-        });
+        res.status(500).json({ mensaje: 'Error interno del servidor.', detalle: error.message });
     } finally {
         connection.release();
     }
 });
 
-// Requerimiento total de todos los talleres por material (con cálculo de estados y próxima rotación)
 app.get('/api/inventario/resumen', async (req, res) => {
     const query = `
         SELECT 
@@ -649,12 +537,9 @@ app.get('/api/inventario/resumen', async (req, res) => {
 
     try {
         const [results] = await pool.query(query);
-
-        // Agrupamos en memoria por nombre normalizado (sin espacios extra y en minúsculas) para sumar duplicados
         const map = new Map();
         for (const item of results) {
             const nombreLimpio = item.Nombre_Descripcion.trim().toLowerCase();
-            
             if (!map.has(nombreLimpio)) {
                 map.set(nombreLimpio, { ...item });
             } else {
@@ -662,27 +547,19 @@ app.get('/api/inventario/resumen', async (req, res) => {
                 existing.StockActual += Number(item.StockActual);
                 existing.Requerimiento += Number(item.Requerimiento);
                 existing.Balance_Numerico = existing.StockActual - existing.Requerimiento;
-
-                if (item.Proxima_Rotacion_Fecha && (!existing.Proxima_Rotacion_Fecha || existing.Proxima_Rotacion_Fecha === '-')) {
-                    existing.Proxima_Rotacion_Fecha = item.Proxima_Rotacion_Fecha;
-                }
             }
         }
 
-        // Formateamos el resultado final que espera el frontend
         const resultadosFinales = Array.from(map.values()).map(item => {
             const stock = Number(item.StockActual || 0);
             const req = Number(item.Requerimiento || 0);
             
-            // Determinamos el estado para que coincida exactamente con el frontend
             let estado = 'DISPONIBLE';
             if (stock < req) {
                 estado = 'FALTANTE';
             } else if (stock === req) {
                 estado = 'LIMITADO';
             }
-
-            const esFaltante = estado === 'FALTANTE';
 
             return {
                 Id_Material: item.Id_Material,
@@ -691,7 +568,7 @@ app.get('/api/inventario/resumen', async (req, res) => {
                 Requerimiento: req,
                 Balance_Numerico: item.Balance_Numerico,
                 Estado: estado,
-                Proxima_Rotacion: esFaltante ? (item.Proxima_Rotacion_Fecha || '-') : '-'
+                Proxima_Rotacion: estado === 'FALTANTE' ? (item.Proxima_Rotacion_Fecha || '-') : '-'
             };
         });
 
@@ -702,9 +579,6 @@ app.get('/api/inventario/resumen', async (req, res) => {
     }
 });
 
-// ====================================================
-// 4. INICIAR EL SERVIDOR
-// ====================================================
 app.listen(port, () => {
-  console.log(`🚀 Servidor escuchando en http://localhost:${port}`);
+    console.log(`🚀 Servidor corriendo en http://localhost:${port}`);
 });
