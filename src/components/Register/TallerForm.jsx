@@ -79,10 +79,11 @@ export default function TallerForm() {
 
                     <div>
                         <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">
-                            Año del Curso
+                            Año del Curso *
                         </label>
                         <input
                             type="number"
+                            required
                             value={anio}
                             onChange={(e) => setAnio(e.target.value)}
                             placeholder="Ej: 4"
