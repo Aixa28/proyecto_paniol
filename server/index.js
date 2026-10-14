@@ -626,7 +626,7 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
     }
 });
 
-// Requerimiento total de todos los talleres por material (versión segura y limpia)
+// Requerimiento total de todos los talleres por material (versión con agrupación por nombre limpio)
 app.get('/api/inventario/resumen', async (req, res) => {
     const query = `
         SELECT 
@@ -645,13 +645,31 @@ app.get('/api/inventario/resumen', async (req, res) => {
 
     try {
         const [results] = await pool.query(query);
-        res.json(results);
+
+        // Agrupamos en memoria por nombre normalizado (sin espacios extra y en minúsculas) para sumar duplicados
+        const map = new Map();
+        for (const item of results) {
+            const nombreLimpio = item.Nombre_Descripcion.trim().toLowerCase();
+            
+            if (!map.has(nombreLimpio)) {
+                // Si es la primera vez que aparece este material, lo guardamos clonándolo
+                map.set(nombreLimpio, { ...item });
+            } else {
+                // Si ya existía otro con el mismo nombre, sumamos sus stocks y requerimientos
+                const existing = map.get(nombreLimpio);
+                existing.StockActual += Number(item.StockActual);
+                existing.Requerimiento += Number(item.Requerimiento);
+                existing.Balance_Numerico = existing.StockActual - existing.Requerimiento;
+            }
+        }
+
+        const resultadosFinales = Array.from(map.values());
+        res.json(resultadosFinales);
     } catch (err) {
         console.error('Error al obtener resumen de inventario:', err);
         res.status(500).send('Error al obtener el resumen del inventario');
     }
 });
-
 // ====================================================
 // 4. INICIAR EL SERVIDOR
 // ====================================================
