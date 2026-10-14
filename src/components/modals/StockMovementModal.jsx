@@ -188,14 +188,29 @@ export default function StockMovementModal({ material, onClose }) {
                     className="w-full px-3 py-2 border rounded-md"
                     required
                 >
-                    <option value="">Seleccionar…</option>
-                    {talleres.map((t) => {
-                        const docente = teachers.find(d => d.Id_Taller === t.Id_Taller);
-                        const docenteNombre = docente ? ` - ${docente.Nombre} ${docente.Apellido}` : '';
-                        const anio = t.anio ? `${t.anio}° ` : '';
+                    {talleres.map(t => {
+                        // 1. Obtener año, denominación y turno limpios
+                        const anioVal = t.Anio || t.anio || "";
+                        const anioText = anioVal ? `${anioVal}° - ` : "";
+                        const denominacion = t.Denominacion || "";
+                        
+                        // 2. Formatear el turno correctamente ("Mañana", "Tarde", etc.)
+                        let turnoRaw = t.Turno || "";
+                        if (turnoRaw.toLowerCase() === 'maniana' || turnoRaw.toLowerCase() === 'manana') {
+                            turnoRaw = 'Mañana';
+                        }
+                        const turnoText = turnoRaw ? ` (${turnoRaw})` : "";
+
+                        // 3. Buscar el profesor asignado a este taller
+                        const teacher = teachers.find(teacherItem => Number(teacherItem.Id_Taller) === Number(t.Id_Taller));
+                        const teacherText = teacher ? ` - ${teacher.Nombre} ${teacher.Apellido}` : " - Sin asignar";
+
+                        // 4. Texto completo unificado
+                        const optionLabel = `${anioText}${denominacion}${turnoText}${teacherText}`;
+
                         return (
-                            <option key={t.Id_Taller} value={t.Denominacion}>
-                                {anio}{t.Denominacion}{docenteNombre}
+                            <option key={t.Id_Taller} value={optionLabel}>
+                                {optionLabel}
                             </option>
                         );
                     })}
