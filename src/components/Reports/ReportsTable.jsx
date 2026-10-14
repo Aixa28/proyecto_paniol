@@ -2,7 +2,7 @@
 import { useStore } from "../../context/StoreProvider";
 
 export default function ReportsTable({ rows = [] }) {
-    const { talleres = [] } = useStore(); // Traemos la lista de talleres desde el contexto
+    const { talleres = [] } = useStore();
 
     if (!rows.length) {
         return (
@@ -25,17 +25,14 @@ export default function ReportsTable({ rows = [] }) {
         }
     };
 
-    // agregamos una función para conseguir y formatear el nombre del taller/departamento
     const getDepartamentoText = (m) => {
-        // si m tiene directamente un texto
         let text = m.tallerName || m.departmentName || m.departamento || m.department || m.taller || m.nombreTaller;
         
-        // si solo viene el id lo buscamos en la lista de talleres
         if (!text && (m.Id_Taller || m.idTaller || m.id_taller)) {
             const targetId = m.Id_Taller || m.idTaller || m.id_taller;
             const t = talleres.find(item => Number(item.Id_Taller) === Number(targetId));
             if (t) {
-                const anioText = t.anio ? `${t.anio}° ` : '';
+                const anioText = (t.Anio || t.anio) ? `${t.Anio || t.anio}° - ` : '';
                 const turnoText = t.Turno ? ` (${t.Turno})` : '';
                 text = `${anioText}${t.Denominacion}${turnoText}`;
             }
@@ -43,7 +40,6 @@ export default function ReportsTable({ rows = [] }) {
 
         if (!text) return "-";
 
-        // formateamos "Maniana" / "Manana" a "Mañana"
         return text.replace(/maniana|manana/gi, 'Mañana');
     };
 

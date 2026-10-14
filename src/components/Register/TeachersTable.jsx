@@ -8,8 +8,8 @@ export default function TeachersTable() {
   const [q, setQ] = useState("");
   const [edit, setEdit] = useState(null);
   const [del, setDel] = useState(null);
-//merge
-  //función para obtener el año, nombre del taller y turno de un profesor
+
+  // Función para obtener el año, nombre del taller y turno de un profesor
   const getTeacherTallerName = (teacher) => {
     if (!teacher.Id_Taller) return 'Sin taller asignado';
     const associatedTaller = talleres.find(taller => Number(taller.Id_Taller) === Number(teacher.Id_Taller));
@@ -27,10 +27,14 @@ export default function TeachersTable() {
   };
 
   const rows = teachers
-    .filter(t =>
-      `${t.Nombre} ${t.Apellido}`.toLowerCase().includes(q.toLowerCase()) ||
-      (t.Email && t.Email.toLowerCase().includes(q.toLowerCase()))
-    )
+    .filter(t => {
+      const fullName = `${t.Nombre} ${t.Apellido}`.toLowerCase();
+      const email = (t.Email || "").toLowerCase();
+      const tallerName = getTeacherTallerName(t).toLowerCase();
+      const query = q.toLowerCase();
+
+      return fullName.includes(query) || email.includes(query) || tallerName.includes(query);
+    })
     .sort((a,b)=> a.Nombre.localeCompare(b.Nombre));
 
   return (
@@ -49,7 +53,7 @@ export default function TeachersTable() {
           />
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              <path strokeLinecap="type" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
             </svg>
           </div>
         </div>
