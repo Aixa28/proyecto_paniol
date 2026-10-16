@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useStore } from "../../context/StoreProvider";
 import { toast } from 'sonner';
-
+//Comentario
 export default function StockMovementModal({ material, onClose }) {
   const { materials, teachers, registerMovement, talleres, updateMaterialRequirement } = useStore();
   const [materialId, setMaterialId] = useState(material?.Id_Material ?? "");
