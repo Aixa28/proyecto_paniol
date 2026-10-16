@@ -303,7 +303,7 @@ export function StoreProvider({ children }) {
         const originalMovements = movements;
 
         quantity = Number(quantity);
-        const materialIndex = materials.findIndex(m => m.Id_Material === materialId);
+        const materialIndex = materials.findIndex(m => Number(m.Id_Material) === Number(materialId));
         if (materialIndex === -1) throw new Error("Material no encontrado");
         
         const materialToUpdate = materials[materialIndex];
@@ -313,49 +313,55 @@ export function StoreProvider({ children }) {
         }
 
         const newStock = movementType === "Ingreso"
-            ? materialToUpdate.StockActual + quantity
-            : materialToUpdate.StockActual - quantity;
+            ? Number(materialToUpdate.StockActual) + quantity
+            : Number(materialToUpdate.StockActual) - quantity;
 
-        setMaterials(materials.map(m => m.Id_Material === materialId ? { ...m, StockActual: newStock } : m));
+        setMaterials(materials.map(m => Number(m.Id_Material) === Number(materialId) ? { ...m, StockActual: newStock } : m));
 
         try {
             let idTaller = null;
             let idDocente = null;
 
-            // Búsqueda robusta del Taller ID
-           // Búsqueda robusta del Taller ID
+            // 1. Deducir Taller
             if (department && department !== "Seleccionar...") {
-                const depLower = String(department).trim().toLowerCase();
+                const depStr = String(department).trim();
                 
-                // Si el texto incluye un guion (ej: "Mecánica - Juan Pérez"), nos quedamos con la parte del taller
-                const cleanDep = depLower.split('-')[0].trim();
+                // Si viene un ID directo
+                let foundTaller = talleres.find(t => Number(t.Id_Taller) === Number(depStr));
+                
+                // Si viene el texto formateado
+                if (!foundTaller) {
+                    foundTaller = talleres.find(t => {
+                        const denom = (t.Denominacion || "").toLowerCase();
+                        const depLower = depStr.toLowerCase();
+                        return depLower.includes(denom) || denom.includes(depLower);
+                    });
+                }
 
-                const taller = talleres.find(t => {
-                    const denom = (t.Denominacion || "").toLowerCase();
-                    const anio = t.Anio || t.anio || "";
-                    const turno = (t.Turno || "").toLowerCase();
-
-                    return (
-                        String(t.Id_Taller) === cleanDep ||
-                        denom === cleanDep ||
-                        cleanDep.includes(denom) ||
-                        denom.includes(cleanDep)
-                    );
-                });
-                if (taller) idTaller = taller.Id_Taller;
+                if (foundTaller) {
+                    idTaller = foundTaller.Id_Taller;
+                    
+                    // Buscar si el taller ya tiene un docente asignado automáticamente
+                    const teacherByTaller = teachers.find(t => Number(t.Id_Taller) === Number(idTaller));
+                    if (teacherByTaller) {
+                        idDocente = teacherByTaller.Id_Docente;
+                    }
+                }
             }
 
-            // Búsqueda robusta del Docente ID
+            // 2. Deducir Docente (si viene especificado explícitamente)
             if (responsible && responsible !== "Todos" && responsible !== "Sin asignar") {
                 const respLower = String(responsible).trim().toLowerCase();
-                const teacher = teachers.find(t => {
+                const teacherFound = teachers.find(t => {
                     const fullName = `${t.Nombre} ${t.Apellido}`.trim().toLowerCase();
                     const altFullName = `${t.Apellido} ${t.Nombre}`.trim().toLowerCase();
-                    return String(t.Id_Docente) === respLower || fullName === respLower || altFullName === respLower || respLower.includes(t.Nombre.toLowerCase());
+                    return String(t.Id_Docente) === respLower || fullName === respLower || altFullName === respLower || respLower.includes((t.Nombre || "").toLowerCase());
                 });
-                if (teacher) idDocente = teacher.Id_Docente;
+                if (teacherFound) {
+                    idDocente = teacherFound.Id_Docente;
+                }
             }
-            
+
             const body = {
                 materialId: Number(materialId),
                 movementType,

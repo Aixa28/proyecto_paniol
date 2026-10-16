@@ -1,65 +1,67 @@
 import { useState, useMemo } from "react";
 import { useStore } from "../../context/StoreProvider";
 import { toast } from 'sonner';
-//Comentario
+
 export default function StockMovementModal({ material, onClose }) {
   const { materials, teachers, registerMovement, talleres, updateMaterialRequirement } = useStore();
   const [materialId, setMaterialId] = useState(material?.Id_Material ?? "");
   const [movementType, setMovementType] = useState("Ingreso");
   const [quantity, setQuantity] = useState(1);
   const [newRequirement, setNewRequirement] = useState(1);
-  const [department, setDepartment] = useState("");
-  const [responsible, setResponsible] = useState("");
+  const [selectedTallerId, setSelectedTallerId] = useState("");
   const [observations, setObservations] = useState("");
-  
+
   const onSubmit = async (e) => {
     e.preventDefault();
 
-    console.log('onSubmit llamado', { movementType, materialId, quantity, newRequirement, responsible, department });
-    
     try {
       if (movementType === 'Cambio de Requerimiento') {
-          const selectedTaller = talleres.find(t => t.Denominacion === department);
-          if (!selectedTaller) {
-              toast.error("Por favor, selecciona un departamento.");
-              return;
-          }
-        
-          await updateMaterialRequirement({
-            materialId: Number(materialId),
-            idTaller: selectedTaller.Id_Taller,
-            newRequirement: Number(newRequirement),
-            observations,
-            responsible,
-          });
-          toast.success("Requerimiento actualizado correctamente");
-      } else {
-          const movementData = {
-            materialId: Number(materialId),
-            movementType,
-            quantity: Number(quantity),
-            observations,
-          };
+        if (!selectedTallerId) {
+          toast.error("Por favor, selecciona un taller.");
+          return;
+        }
 
-          if (movementType === "Egreso") {
-            movementData.department = department;
-            movementData.responsible = responsible;
-          }
-          await registerMovement(movementData);
-          toast.success("Movimiento registrado correctamente");
+        const selectedTaller = talleres.find(t => Number(t.Id_Taller) === Number(selectedTallerId));
+        const assignedTeacher = teachers.find(t => Number(t.Id_Taller) === Number(selectedTallerId));
+
+        await updateMaterialRequirement({
+          materialId: Number(materialId),
+          idTaller: Number(selectedTallerId),
+          newRequirement: Number(newRequirement),
+          observations,
+          responsible: assignedTeacher ? `${assignedTeacher.Nombre} ${assignedTeacher.Apellido}` : "",
+          department: selectedTaller ? selectedTaller.Denominacion : ""
+        });
+        toast.success("Requerimiento actualizado correctamente");
+      } else {
+        if ((movementType === "Egreso") && !selectedTallerId) {
+          toast.error("Por favor, selecciona un taller.");
+          return;
+        }
+
+        const selectedTaller = talleres.find(t => Number(t.Id_Taller) === Number(selectedTallerId));
+        const assignedTeacher = teachers.find(t => Number(t.Id_Taller) === Number(selectedTallerId));
+
+        const movementData = {
+          materialId: Number(materialId),
+          movementType,
+          quantity: Number(quantity),
+          observations,
+        };
+
+        if (movementType === "Egreso") {
+          movementData.department = selectedTaller ? selectedTaller.Id_Taller : selectedTallerId;
+          movementData.responsible = assignedTeacher ? `${assignedTeacher.Nombre} ${assignedTeacher.Apellido}` : "";
+        }
+
+        await registerMovement(movementData);
+        toast.success("Movimiento registrado correctamente");
       }
       onClose();
     } catch (error) {
       toast.error(error.message || "Error al registrar el movimiento.");
     }
   };
-
-  const filteredTeachers = useMemo(() => {
-    if (!department) return teachers;
-    const selectedTaller = talleres.find((t) => t.Denominacion === department);
-    if (!selectedTaller) return [];
-    return teachers.filter((t) => t.Id_Taller === selectedTaller.Id_Taller);
-  }, [department, teachers, talleres]);
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
@@ -95,7 +97,7 @@ export default function StockMovementModal({ material, onClose }) {
             <select
               value={materialId}
               onChange={(e) => setMaterialId(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md"
+              className="w-full px-3 py-2 border rounded-md text-sm bg-white"
               required
             >
               <option value="">Seleccionar…</option>
@@ -111,7 +113,7 @@ export default function StockMovementModal({ material, onClose }) {
               Tipo *
             </label>
             <div className="flex items-center space-x-4">
-              <label className="flex items-center">
+              <label className="flex items-center cursor-pointer">
                 <input
                   type="radio"
                   name="movementType"
@@ -122,7 +124,7 @@ export default function StockMovementModal({ material, onClose }) {
                 />
                 <span className="ml-2 text-sm text-gray-700">Ingreso</span>
               </label>
-              <label className="flex items-center">
+              <label className="flex items-center cursor-pointer">
                 <input
                   type="radio"
                   name="movementType"
@@ -133,7 +135,7 @@ export default function StockMovementModal({ material, onClose }) {
                 />
                 <span className="ml-2 text-sm text-gray-700">Egreso</span>
               </label>
-              <label className="flex items-center">
+              <label className="flex items-center cursor-pointer">
                 <input
                   type="radio"
                   name="movementType"
@@ -154,9 +156,10 @@ export default function StockMovementModal({ material, onClose }) {
               </label>
               <input
                 type="number"
+                min="1"
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border rounded-md text-sm"
                 required
               />
             </div>
@@ -169,54 +172,52 @@ export default function StockMovementModal({ material, onClose }) {
               </label>
               <input
                 type="number"
+                min="0"
                 value={newRequirement}
                 onChange={(e) => setNewRequirement(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border rounded-md text-sm"
                 required
               />
             </div>
           )}
 
-         {(movementType === "Egreso" || movementType === "Cambio de Requerimiento") && (
+          {(movementType === "Egreso" || movementType === "Cambio de Requerimiento") && (
             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Taller *
-                </label>
-                <select
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md"
-                    required
-                >
-                    {talleres.map(t => {
-                        // 1. Obtener año, denominación y turno limpios
-                        const anioVal = t.Anio || t.anio || "";
-                        const anioText = anioVal ? `${anioVal}° - ` : "";
-                        const denominacion = t.Denominacion || "";
-                        
-                        // 2. Formatear el turno correctamente ("Mañana", "Tarde", etc.)
-                        let turnoRaw = t.Turno || "";
-                        if (turnoRaw.toLowerCase() === 'maniana' || turnoRaw.toLowerCase() === 'manana') {
-                            turnoRaw = 'Mañana';
-                        }
-                        const turnoText = turnoRaw ? ` (${turnoRaw})` : "";
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Taller *
+              </label>
+              <select
+                value={selectedTallerId}
+                onChange={(e) => setSelectedTallerId(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md text-sm bg-white"
+                required
+              >
+                <option value="">Seleccionar...</option>
+                {talleres.map(t => {
+                  const anioVal = t.Anio || t.anio || "";
+                  const anioText = anioVal ? `${anioVal}° - ` : "";
+                  const denominacion = t.Denominacion || "";
+                  
+                  let turnoRaw = t.Turno || "";
+                  if (turnoRaw.toLowerCase() === 'maniana' || turnoRaw.toLowerCase() === 'manana') {
+                    turnoRaw = 'Mañana';
+                  }
+                  const turnoText = turnoRaw ? ` (${turnoRaw})` : "";
 
-                        // 3. Buscar el profesor asignado a este taller
-                        const teacher = teachers.find(teacherItem => Number(teacherItem.Id_Taller) === Number(t.Id_Taller));
-                        const teacherText = teacher ? ` - ${teacher.Nombre} ${teacher.Apellido}` : " - Sin asignar";
+                  const teacher = teachers.find(teacherItem => Number(teacherItem.Id_Taller) === Number(t.Id_Taller));
+                  const teacherText = teacher ? ` - ${teacher.Nombre} ${teacher.Apellido}` : " - Sin asignar";
 
-                        // 4. Texto completo unificado
-                        const optionLabel = `${anioText}${denominacion}${turnoText}${teacherText}`;
+                  const optionLabel = `${anioText}${denominacion}${turnoText}${teacherText}`;
 
-                        return (
-                            <option key={t.Id_Taller} value={optionLabel}>
-                                {optionLabel}
-                            </option>
-                        );
-                    })}
-                </select>
+                  return (
+                    <option key={t.Id_Taller} value={t.Id_Taller}>
+                      {optionLabel}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
-        )}
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -226,20 +227,20 @@ export default function StockMovementModal({ material, onClose }) {
               rows={3}
               value={observations}
               onChange={(e) => setObservations(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md"
+              className="w-full px-3 py-2 border rounded-md text-sm"
             />
           </div>
           <div className="flex space-x-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 border rounded-md py-2 bg-white hover:bg-gray-50"
+              className="flex-1 border rounded-md py-2 bg-white hover:bg-gray-50 text-sm"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="flex-1 rounded-md py-2 text-white bg-blue-600 hover:bg-blue-700"
+              className="flex-1 rounded-md py-2 text-white bg-blue-600 hover:bg-blue-700 text-sm font-medium"
             >
               Registrar
             </button>
