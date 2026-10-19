@@ -9,7 +9,7 @@ function badge(material) {
 
     // Evaluamos los tres estados tal como los pediste
     if (stock < req) {
-        return { text: "Faltante", cls: "text-red-800 bg-red-100" };
+        return { text: "Faltante", cls: "text-red-800 bg-red-100 hover:bg-red-200 cursor-pointer transition-colors" };
     } else if (stock === req) {
         return { text: "Limitado", cls: "text-yellow-800 bg-yellow-100" };
     } else {
@@ -55,8 +55,27 @@ export default function InventoryTable({ rows }) {
                         <td className="px-6 py-4 whitespace-nowrap text-center">
                         <div className="text-sm font-medium text-gray-900">{m.Requerimiento}</div>
                         </td>
+                        
+                        {/* CELDA DE ESTADO */}
                         <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span title={title} className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${b.cls}`}>{b.text}</span>
+                            {esFaltante ? (
+                                <button
+                                    type="button"
+                                    title={title}
+                                    onClick={() => {
+                                        // Redirige a la página o solapa de requerimientos al presionar Faltante
+                                        window.location.href = '/registrar'; 
+                                    }}
+                                    className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full ${b.cls}`}
+                                >
+                                    <span>{b.text}</span>
+                                    <span className="font-bold">({faltante})</span>
+                                </button>
+                            ) : (
+                                <span title={title} className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${b.cls}`}>
+                                    {b.text}
+                                </span>
+                            )}
                         </td>
                         
                         {/* Muestra la fecha de la rotación únicamente si hay faltante real */}
