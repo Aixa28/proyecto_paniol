@@ -7,7 +7,7 @@ export default function StockMovementModal({ material, onClose }) {
   const [materialId, setMaterialId] = useState(material?.Id_Material ?? "");
   const [movementType, setMovementType] = useState("Ingreso");
   const [quantity, setQuantity] = useState(1);
-  const [newRequirement, setNewRequirement] = useState(1);
+  const [newRequirement, setNewRequirement] = useState(0);
   const [selectedTallerId, setSelectedTallerId] = useState("");
   const [observations, setObservations] = useState("");
 
@@ -16,20 +16,24 @@ export default function StockMovementModal({ material, onClose }) {
 
     try {
       if (movementType === 'Cambio de Requerimiento') {
-            if (!selectedTallerId) {
-                toast.error("Por favor, selecciona un taller.");
-                return;
-            }
+        if (!selectedTallerId) {
+          toast.error("Por favor, selecciona un taller.");
+          return;
+        }
 
-            await registerMovement({
-                materialId: Number(materialId),
-                movementType: 'Cambio de Requerimiento',
-                quantity: Number(newRequirement || quantity),
-                department: Number(selectedTallerId),
-                observations
-            });
-            toast.success("Requerimiento registrado correctamente");
-        } else {
+        const selectedTaller = talleres.find(t => Number(t.Id_Taller) === Number(selectedTallerId));
+        const assignedTeacher = teachers.find(t => Number(t.Id_Taller) === Number(selectedTallerId));
+
+        await updateMaterialRequirement({
+          materialId: Number(materialId),
+          idTaller: Number(selectedTallerId),
+          newRequirement: Number(newRequirement),
+          observations,
+          responsible: assignedTeacher ? `${assignedTeacher.Nombre} ${assignedTeacher.Apellido}` : "",
+          department: selectedTaller ? selectedTaller.Denominacion : ""
+        });
+        toast.success("Requerimiento actualizado correctamente");
+      } else {
         if ((movementType === "Egreso") && !selectedTallerId) {
           toast.error("Por favor, selecciona un taller.");
           return;
@@ -164,16 +168,16 @@ export default function StockMovementModal({ material, onClose }) {
           {movementType === "Cambio de Requerimiento" && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cantidad *
+                Cantidad a sumar o restar (ej: -10) *
               </label>
               <input
                 type="number"
-                min="0"
                 value={newRequirement}
                 onChange={(e) => setNewRequirement(e.target.value)}
                 className="w-full px-3 py-2 border rounded-md text-sm"
                 required
               />
+              <p className="text-xs text-gray-500 mt-1">Podés usar números negativos (ej. -5) para restar al requerimiento actual.</p>
             </div>
           )}
 
