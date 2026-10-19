@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback} from "react";
 import EditRequirementModal from "../components/modals/EditRequirementModal";
 import { toast } from 'sonner';
+import { useStore } from "../context/StoreProvider";
 
 export default function RequerimientosPage() {
     const [requirements, setRequirements] = useState([]);
@@ -8,6 +9,7 @@ export default function RequerimientosPage() {
     const [q, setQ] = useState("");
     const [sortOrder, setSortOrder] = useState("ASC"); // "ASC" o "DESC"
     const [editItem, setEditItem] = useState(null);
+    const { fetchData } = useStore();
 
     const fetchRequirements = useCallback(async () => {
         setLoading(true);
@@ -16,7 +18,6 @@ export default function RequerimientosPage() {
             if (!res.ok) throw new Error("Error al obtener requerimientos");
             const data = await res.json();
             
-            // Formatear departamento y turno ("Año° - Taller (Turno)")
             const formatted = data.map(item => {
                 const anioStr = item.tallerAnio ? `${item.tallerAnio}° - ` : "";
                 let turnoRaw = item.tallerTurno || "";
@@ -49,7 +50,8 @@ export default function RequerimientosPage() {
             body: JSON.stringify(payload)
         });
         if (!res.ok) throw new Error("No se pudo actualizar");
-        await fetchRequirements();
+        
+        await fetchRequirements(); // Actualiza la tabla local al instante
     };
 
     // Eliminar requerimiento
@@ -62,7 +64,8 @@ export default function RequerimientosPage() {
             });
             if (!res.ok) throw new Error("Error al eliminar");
             toast.success("Requerimiento eliminado");
-            await fetchRequirements();
+            
+            await fetchRequirements(); // Actualiza la tabla local al instante
         } catch (err) {
             toast.error(err.message || "No se pudo eliminar");
         }
