@@ -579,6 +579,83 @@ app.get('/api/inventario/resumen', async (req, res) => {
     }
 });
 
+// -------------------------
+// RUTAS DE REQUERIMIENTOS 
+// -------------------------
+
+// Obtener requerimientos específicos
+app.get('/api/requerimientos/detalle', async (req, res) => {
+    try {
+        const query = `
+            SELECT 
+                mrt.Id_Taller,
+                mrt.Id_Rotacion,
+                mrt.Id_Material,
+                mrt.Requerimiento AS cantidad,
+                mrt.Fecha,
+                m.Nombre_Descripcion AS materialNombre,
+                t.Denominacion AS tallerNombre,
+                t.Anio AS tallerAnio,
+                t.Turno AS tallerTurno,
+                CONCAT(IFNULL(d.Nombre, ''), ' ', IFNULL(d.Apellido, '')) AS profesorNombre,
+                d.Id_Docente
+            FROM materialxrotacionxtaller mrt
+            INNER JOIN material m ON mrt.Id_Material = m.Id_Material
+            INNER JOIN taller t ON mrt.Id_Taller = t.Id_Taller
+            LEFT JOIN docente d ON d.Id_Taller = t.Id_Taller
+            WHERE mrt.Requerimiento > 0
+            ORDER BY m.Nombre_Descripcion ASC
+        `;
+        const [rows] = await pool.query(query);
+        res.json(rows);
+    } catch (err) {
+        console.error('Error al obtener detalle de requerimientos:', err);
+        res.status(500).json({ message: 'Error al obtener detalle de requerimientos' });
+    }
+});
+
+// Editar la cantidad de un requerimiento específico
+app.put('/api/requerimientos/detalle', async (req, res) => {
+    const { idTaller, idRotacion, idMaterial, nuevaCantidad } = req.body;
+    try {
+        if (Number(nuevaCantidad) <= 0) {
+            await pool.query(
+                'DELETE FROM materialxrotacionxtaller WHERE Id_Taller = ? AND Id_Rotacion = ? AND Id_Material = ?',
+                [idTaller, idRotacion, idMaterial]
+            );
+            return res.json({ message: 'Requerimiento eliminado por cantidad 0' });
+        }
+
+        const query = `
+            UPDATE materialxrotacionxtaller 
+            SET Requerimiento = ? 
+            WHERE Id_Taller = ? AND Id_Rotacion = ? AND Id_Material = ?
+        `;
+        await pool.query(query, [nuevaCantidad, idTaller, idRotacion, idMaterial]);
+        res.json({ message: 'Requerimiento actualizado correctamente' });
+    } catch (err) {
+        console.error('Error al actualizar requerimiento:', err);
+        res.status(500).json({ message: 'Error al actualizar el requerimiento' });
+    }
+});
+
+// Eliminar un requerimiento específico
+app.delete('/api/requerimientos/detalle/:idTaller/:idRotacion/:idMaterial', async (req, res) => {
+    const { idTaller, idRotacion, idMaterial } = req.params;
+    try {
+        const query = `
+            DELETE FROM materialxrotacionxtaller 
+            WHERE Id_Taller = ? AND Id_Rotacion = ? AND Id_Material = ?
+        `;
+        await pool.query(query, [idTaller, idRotacion, idMaterial]);
+        res.json({ message: 'Requerimiento eliminado correctamente' });
+    } catch (err) {
+        console.error('Error al eliminar requerimiento:', err);
+        res.status(500).json({ message: 'Error al eliminar el requerimiento' });
+    }
+});
+
 app.listen(port, () => {
     console.log(`🚀 Servidor corriendo en http://localhost:${port}`);
 });
+
