@@ -397,56 +397,64 @@ app.get('/api/reportes', async (req, res) => {
 // ----------------------------------------------------
 app.post('/api/movimientos', async (req, res) => {
     const { materialId, movementType, quantity, idTaller, idDocente, observations } = req.body;
+    
     const connection = await pool.getConnection();
-
     try {
         await connection.beginTransaction();
 
-        const insertMovementQuery = `
+        // 1. Registrar el movimiento histórico
+        const queryMov = `
             INSERT INTO movimiento (Id_Material, Tipo, Cantidad, Id_Taller, Id_Docente, Observacion, Fecha)
             VALUES (?, ?, ?, ?, ?, ?, NOW())
         `;
-        const [movementResult] = await connection.query(insertMovementQuery, [
-            materialId,
-            movementType,
-            quantity,
-            idTaller,
-            idDocente,
-            observations
+        await connection.query(queryMov, [
+            materialId, 
+            movementType, 
+            quantity, 
+            idTaller || null, 
+            idDocente || null, 
+            observations || ''
         ]);
-        const newMovementId = movementResult.insertId;
 
-        const updateStockQuery = `
-            UPDATE material
-            SET StockActual = StockActual ${movementType === 'Ingreso' ? '+' : '-'} ?
-            WHERE Id_Material = ?
-        `;
-        await connection.query(updateStockQuery, [quantity, materialId]);
-
-        if (movementType === 'Egreso' && idTaller) {
-            const [rotations] = await connection.query(
-                'SELECT Id_Rotacion FROM rotacion WHERE CURDATE() BETWEEN Inicio AND Final LIMIT 1'
+        // 2. Si es un Cambio de Requerimiento, actualizar o insertar en la tabla específica del requerimiento
+        if (movementType === 'Cambio de Requerimiento' && idTaller) {
+            // Buscamos si existe una rotación activa para este taller, o usamos la primera disponible
+            let [rotaciones] = await connection.query(
+                'SELECT Id_Rotacion FROM materialxrotacionxtaller WHERE Id_Taller = ? LIMIT 1', 
+                [idTaller]
             );
 
-            if (rotations.length > 0) {
-                const idRotacion = rotations[0].Id_Rotacion;
-                const updateRequirementQuery = `
-                    INSERT INTO materialxrotacionxtaller (Id_Taller, Id_Rotacion, Id_Material, Fecha, Requerimiento)
-                    VALUES (?, ?, ?, CURDATE(), ?)
-                    ON DUPLICATE KEY UPDATE Requerimiento = Requerimiento + VALUES(Requerimiento), Fecha = CURDATE()
-                `;
-                await connection.query(updateRequirementQuery, [idTaller, idRotacion, materialId, quantity]);
+            let idRotacion = rotaciones.length > 0 ? rotaciones[0].Id_Rotacion : 1; // Default 1 si no hay rotación previa
+
+            // Verificamos si ya existe el registro para este material, taller y rotación
+            let [existe] = await connection.query(
+                'SELECT * FROM materialxrotacionxtaller WHERE Id_Taller = ? AND Id_Material = ? AND Id_Rotacion = ?',
+                [idTaller, materialId, idRotacion]
+            );
+
+            if (existe.length > 0) {
+                // Actualizamos la cantidad requerida
+                await connection.query(
+                    'UPDATE materialxrotacionxtaller SET Requerimiento = ? WHERE Id_Taller = ? AND Id_Material = ? AND Id_Rotacion = ?',
+                    [quantity, idTaller, materialId, idRotacion]
+                );
+            } else {
+                // Insertamos el nuevo requerimiento específico
+                await connection.query(
+                    'INSERT INTO materialxrotacionxtaller (Id_Taller, Id_Rotacion, Id_Material, Requerimiento) VALUES (?, ?, ?, ?)',
+                    [idTaller, idRotacion, materialId, quantity]
+                );
             }
         }
-        
+
         await connection.commit();
-        res.status(201).json({ id: newMovementId, message: 'Movimiento registrado correctamente.' });
-    } catch (error) {
-        await connection.rollback();
-        console.error('Error al registrar movimiento:', error);
-        res.status(500).json({ mensaje: 'Error interno del servidor al registrar el movimiento.' });
-    } finally {
         connection.release();
+        res.json({ message: 'Movimiento y requerimiento procesados con éxito' });
+    } catch (err) {
+        await connection.rollback();
+        connection.release();
+        console.error('Error al procesar movimiento:', err);
+        res.status(500).json({ mensaje: 'Error al procesar el movimiento' });
     }
 });
 

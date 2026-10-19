@@ -16,6 +16,9 @@ export default function NavTabs({ tab, onChange }) {
           <button onClick={() => onChange("reports")} className={`${base} ${tab === 'reports' ? active : inactive}`}>
             Reportes
           </button>
+          <button onClick={() => onChange("requerimientos")} className={`${base} ${tab === 'requerimientos' ? active : inactive}`}>
+            Requerimientos
+          </button>
         </nav>
       </div>
     </div>
