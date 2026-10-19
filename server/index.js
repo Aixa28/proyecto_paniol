@@ -590,8 +590,6 @@ app.get('/api/inventario/resumen', async (req, res) => {
 // -------------------------
 // RUTAS DE REQUERIMIENTOS 
 // -------------------------
-
-// Obtener requerimientos específicos
 app.get('/api/requerimientos/detalle', async (req, res) => {
     try {
         const query = `
@@ -622,42 +620,101 @@ app.get('/api/requerimientos/detalle', async (req, res) => {
     }
 });
 
-// Editar la cantidad de un requerimiento específico
+// Editar la cantidad de un requerimiento específico y registrar en movimientos
 app.put('/api/requerimientos/detalle', async (req, res) => {
     const { idTaller, idRotacion, idMaterial, nuevaCantidad } = req.body;
+    const connection = await pool.getConnection();
+    
     try {
+        await connection.beginTransaction();
+
+        // 1. Buscar si el taller tiene un profesor asignado para la trazabilidad
+        const [docenteRes] = await connection.query(
+            'SELECT Id_Docente FROM docente WHERE Id_Taller = ? LIMIT 1',
+            [idTaller]
+        );
+        const idDocente = docenteRes.length > 0 ? docenteRes[0].Id_Docente : null;
+
         if (Number(nuevaCantidad) <= 0) {
-            await pool.query(
+            // Si la cantidad es 0 o menor, eliminamos el requerimiento
+            await connection.query(
                 'DELETE FROM materialxrotacionxtaller WHERE Id_Taller = ? AND Id_Rotacion = ? AND Id_Material = ?',
                 [idTaller, idRotacion, idMaterial]
             );
+
+            // Registrar movimiento de eliminación/cambio a 0
+            await connection.query(
+                `INSERT INTO movimiento (Id_Material, Tipo, Cantidad, Id_Taller, Id_Docente, Observacion, Fecha)
+                 VALUES (?, 'Cambio de Requerimiento', 0, ?, ?, 'Requerimiento eliminado (cantidad 0)', NOW())`,
+                [idMaterial, idTaller, idDocente]
+            );
+
+            await connection.commit();
+            connection.release();
             return res.json({ message: 'Requerimiento eliminado por cantidad 0' });
         }
 
+        // 2. Actualizar la cantidad en la tabla intermedia
         const query = `
             UPDATE materialxrotacionxtaller 
             SET Requerimiento = ? 
             WHERE Id_Taller = ? AND Id_Rotacion = ? AND Id_Material = ?
         `;
-        await pool.query(query, [nuevaCantidad, idTaller, idRotacion, idMaterial]);
+        await connection.query(query, [nuevaCantidad, idTaller, idRotacion, idMaterial]);
+
+        // 3. Registrar el movimiento histórico para que aparezca en Reportes
+        await connection.query(
+            `INSERT INTO movimiento (Id_Material, Tipo, Cantidad, Id_Taller, Id_Docente, Observacion, Fecha)
+             VALUES (?, 'Cambio de Requerimiento', ?, ?, ?, 'Actualización de requerimiento', NOW())`,
+            [idMaterial, nuevaCantidad, idTaller, idDocente]
+        );
+
+        await connection.commit();
+        connection.release();
         res.json({ message: 'Requerimiento actualizado correctamente' });
     } catch (err) {
+        await connection.rollback();
+        connection.release();
         console.error('Error al actualizar requerimiento:', err);
         res.status(500).json({ message: 'Error al actualizar el requerimiento' });
     }
 });
 
-// Eliminar un requerimiento específico
+// Eliminar un requerimiento específico y registrar en movimientos
 app.delete('/api/requerimientos/detalle/:idTaller/:idRotacion/:idMaterial', async (req, res) => {
     const { idTaller, idRotacion, idMaterial } = req.params;
+    const connection = await pool.getConnection();
+
     try {
+        await connection.beginTransaction();
+
+        // 1. Buscar docente asociado
+        const [docenteRes] = await connection.query(
+            'SELECT Id_Docente FROM docente WHERE Id_Taller = ? LIMIT 1',
+            [idTaller]
+        );
+        const idDocente = docenteRes.length > 0 ? docenteRes[0].Id_Docente : null;
+
+        // 2. Eliminar de la tabla de requerimientos
         const query = `
             DELETE FROM materialxrotacionxtaller 
             WHERE Id_Taller = ? AND Id_Rotacion = ? AND Id_Material = ?
         `;
-        await pool.query(query, [idTaller, idRotacion, idMaterial]);
+        await connection.query(query, [idTaller, idRotacion, idMaterial]);
+
+        // 3. Registrar el movimiento histórico de eliminación (cantidad 0 o aviso de baja)
+        await connection.query(
+            `INSERT INTO movimiento (Id_Material, Tipo, Cantidad, Id_Taller, Id_Docente, Observacion, Fecha)
+             VALUES (?, 'Cambio de Requerimiento', 0, ?, ?, 'Eliminación completa de requerimiento', NOW())`,
+            [idMaterial, idTaller, idDocente]
+        );
+
+        await connection.commit();
+        connection.release();
         res.json({ message: 'Requerimiento eliminado correctamente' });
     } catch (err) {
+        await connection.rollback();
+        connection.release();
         console.error('Error al eliminar requerimiento:', err);
         res.status(500).json({ message: 'Error al eliminar el requerimiento' });
     }
