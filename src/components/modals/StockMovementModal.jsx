@@ -16,24 +16,20 @@ export default function StockMovementModal({ material, onClose }) {
 
     try {
       if (movementType === 'Cambio de Requerimiento') {
-        if (!selectedTallerId) {
-          toast.error("Por favor, selecciona un taller.");
-          return;
-        }
+            if (!selectedTallerId) {
+                toast.error("Por favor, selecciona un taller.");
+                return;
+            }
 
-        const selectedTaller = talleres.find(t => Number(t.Id_Taller) === Number(selectedTallerId));
-        const assignedTeacher = teachers.find(t => Number(t.Id_Taller) === Number(selectedTallerId));
-
-        await updateMaterialRequirement({
-          materialId: Number(materialId),
-          idTaller: Number(selectedTallerId),
-          newRequirement: Number(newRequirement),
-          observations,
-          responsible: assignedTeacher ? `${assignedTeacher.Nombre} ${assignedTeacher.Apellido}` : "",
-          department: selectedTaller ? selectedTaller.Denominacion : ""
-        });
-        toast.success("Requerimiento actualizado correctamente");
-      } else {
+            await registerMovement({
+                materialId: Number(materialId),
+                movementType: 'Cambio de Requerimiento',
+                quantity: Number(newRequirement || quantity),
+                department: Number(selectedTallerId),
+                observations
+            });
+            toast.success("Requerimiento registrado correctamente");
+        } else {
         if ((movementType === "Egreso") && !selectedTallerId) {
           toast.error("Por favor, selecciona un taller.");
           return;

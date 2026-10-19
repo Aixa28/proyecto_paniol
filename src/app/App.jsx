@@ -3,6 +3,7 @@ import Header from "../components/Header";
 import NavTabs from "../components/NavTabs";
 import InventoryPage from "../pages/InventoryPage";
 import ReportsPage from "../pages/ReportsPage";
+import RequerimientosPage from "../pages/RequerimientosPage";
 
 import "../styles/App.css";
 import RegisterPage from "../pages/RegisterPage";
@@ -25,7 +26,8 @@ export default function App() {
       <main className="py-6">
         {tab === "inventory" && <InventoryPage />}
         {tab === "register"  && <RegisterPage />}
-        {tab === "reports"   && <ReportsPage />}  
+        {tab === "reports"   && <ReportsPage />}
+        {tab === "requerimientos" && <RequerimientosPage/>}  
       </main>
       <Toaster richColors position="bottom-right" />
     </div>
