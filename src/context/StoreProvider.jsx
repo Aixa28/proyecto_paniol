@@ -460,7 +460,7 @@ export function StoreProvider({ children }) {
     };
 
     const value = {
-        materials, teachers, movements, stats, loading, error, talleres, rotations,
+        materials, teachers, movements, stats, loading, error, talleres, rotations, fetchData,
         addMaterial, updateMaterial, removeMaterial,
         addTeacher, updateTeacher, removeTeacher, 
         addTaller, updateTaller, removeTaller,

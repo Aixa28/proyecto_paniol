@@ -7,8 +7,10 @@ export default function RequerimientosPage() {
     const [requirements, setRequirements] = useState([]);
     const [loading, setLoading] = useState(true);
     const [q, setQ] = useState("");
-    const [sortOrder, setSortOrder] = useState("ASC"); // "ASC" o "DESC"
+    const [sortOrder, setSortOrder] = useState("ASC");
     const [editItem, setEditItem] = useState(null);
+
+    // Importamos fetchData del Store
     const { fetchData } = useStore();
 
     const fetchRequirements = useCallback(async () => {
@@ -51,7 +53,8 @@ export default function RequerimientosPage() {
         });
         if (!res.ok) throw new Error("No se pudo actualizar");
         
-        await fetchRequirements(); // Actualiza la tabla local al instante
+        await fetchRequirements(); // 1. Recarga la tabla de requerimientos
+        if (fetchData) await fetchData(); // 2. Recarga global (Inventario y Reportes) en tiempo real
     };
 
     // Eliminar requerimiento
@@ -65,7 +68,8 @@ export default function RequerimientosPage() {
             if (!res.ok) throw new Error("Error al eliminar");
             toast.success("Requerimiento eliminado");
             
-            await fetchRequirements(); // Actualiza la tabla local al instante
+            await fetchRequirements(); // 1. Recarga la tabla de requerimientos
+            if (fetchData) await fetchData(); // 2. Recarga global (Inventario y Reportes) en tiempo real
         } catch (err) {
             toast.error(err.message || "No se pudo eliminar");
         }
