@@ -7,7 +7,6 @@ function badge(material) {
     const stock = Number(material.StockActual || 0);
     const req = Number(material.Requerimiento || 0);
 
-    // Evaluamos los tres estados tal como los pediste
     if (stock < req) {
         return { text: "Faltante", cls: "text-red-800 bg-red-100 hover:bg-red-200 cursor-pointer transition-colors" };
     } else if (stock === req) {
@@ -17,10 +16,10 @@ function badge(material) {
     }
 }
 
-export default function InventoryTable({ rows }) {
+export default function InventoryTable({ rows, setActiveTab }) {
     const { removeMaterial } = useStore();
-    const [edit, setEdit] = useState(null);    // material or null
-    const [del, setDel]   = useState(null);    // material or null
+    const [edit, setEdit] = useState(null);    
+    const [del, setDel]   = useState(null);    
 
     return (
         <>
@@ -59,26 +58,22 @@ export default function InventoryTable({ rows }) {
                         {/* CELDA DE ESTADO */}
                         <td className="px-6 py-4 whitespace-nowrap text-center">
                             {esFaltante ? (
-                                <button
-                                    type="button"
-                                    title={title}
+                                <button 
                                     onClick={() => {
-                                        // Redirige a la página o solapa de requerimientos al presionar Faltante
-                                        window.location.href = '/registrar'; 
+                                        if (setActiveTab) setActiveTab('requerimientos');
                                     }}
-                                    className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full ${b.cls}`}
+                                    className="px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition text-xs font-semibold cursor-pointer"
+                                    title="Hacer clic para ver requerimientos"
                                 >
-                                    <span>{b.text}</span>
-                                    <span className="font-bold">({faltante})</span>
+                                    Faltante ({Math.abs(m.Balance_Numerico || faltante || 0)})
                                 </button>
                             ) : (
-                                <span title={title} className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${b.cls}`}>
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${b.cls}`}>
                                     {b.text}
                                 </span>
                             )}
                         </td>
                         
-                        {/* Muestra la fecha de la rotación únicamente si hay faltante real */}
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
                             {esFaltante ? (m.Proxima_Rotacion || '-') : '-'}
                         </td>

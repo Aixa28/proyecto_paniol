@@ -12,7 +12,7 @@ import { Toaster } from 'sonner';
 export default function App() {
   const [tab, setTab] = useState("inventory");
 
-  // fecha actual (como tu header original)
+  // fecha actual
   const [dateStr, setDateStr] = useState("");
   useEffect(() => {
     const now = new Date();
@@ -24,7 +24,7 @@ export default function App() {
       <Header user="Administrador" dateStr={dateStr} />
       <NavTabs tab={tab} onChange={setTab} />
       <main className="py-6">
-        {tab === "inventory" && <InventoryPage />}
+        {tab === "inventory" && <InventoryPage setActiveTab={setTab} />}
         {tab === "register"  && <RegisterPage />}
         {tab === "reports"   && <ReportsPage />}
         {tab === "requerimientos" && <RequerimientosPage/>}  
