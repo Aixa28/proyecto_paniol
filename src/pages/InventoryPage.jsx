@@ -1,11 +1,10 @@
-//src/pages/InventoryPage.jsx
 import { useMemo, useState } from "react";
 import { useStore } from "../context/StoreProvider";
 import InventoryTable from "../components/inventory/InventoryTable";
 import Stats from "../components/Inventory/Stats";
 import StockMovementModal from "../components/modals/StockMovementModal";
 
-export default function InventoryPage() {
+export default function InventoryPage({ setActiveTab }) {
     const { materials, stats, loading, error } = useStore();
     const [search, setSearch] = useState("");
     const [sort, setSort] = useState("alphabetical");
@@ -16,7 +15,6 @@ export default function InventoryPage() {
         id: m.Id_Material,
         name: m.Nombre_Descripcion,
         quantity: m.StockActual,
-        // Mantenemos las propiedades originales por si otros componentes las necesitan
         ...m
     })), [materials]);
 
@@ -60,7 +58,7 @@ export default function InventoryPage() {
             </div>
             </div>
 
-            <InventoryTable rows={filtered} />
+            <InventoryTable rows={filtered} setActiveTab={setActiveTab} />
         </div>
 
         <div className="mt-6 bg-white shadow-custom rounded-lg p-6">
