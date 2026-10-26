@@ -458,7 +458,7 @@ app.post('/api/movimientos', async (req, res) => {
     }
 });
 
-app.post('/api/movimientos/requerimiento', async (req, res) => {
+aapp.post('/api/movimientos/requerimiento', async (req, res) => {
     let { materialId, idTaller, newRequirement, observations, idDocente } = req.body;
     const connection = await pool.getConnection();
 
@@ -490,19 +490,40 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
         }
 
         const idRotacion = rotations[0].Id_Rotacion;
+        const valorIngresado = Number(newRequirement || 0);
 
+        // 1. Consultar si ya existe un requerimiento previo para este taller y material
+        const [existingReq] = await connection.query(
+            `SELECT Requerimiento FROM materialxrotacionxtaller 
+             WHERE Id_Taller = ? AND Id_Rotacion = ? AND Id_Material = ?`,
+            [idTaller, idRotacion, materialId]
+        );
+
+        let cantidadFinal = valorIngresado;
+
+        // Si ya existía un registro, sumamos/restamos algebraicamente el valor ingresado al actual
+        if (existingReq.length > 0) {
+            const valorActual = Number(existingReq[0].Requerimiento || 0);
+            cantidadFinal = valorActual + valorIngresado; // Si ingresas -8, se restará automáticamente
+        }
+
+        // Si el resultado es menor o igual a 0, podemos asegurarnos de que no quede negativo
+        if (cantidadFinal < 0) cantidadFinal = 0;
+
+        // 2. Registrar el movimiento histórico con el valor ingresado (ej: -8)
         const insertMovementQuery = `
             INSERT INTO movimiento (Id_Material, Tipo, Cantidad, Id_Taller, Id_Docente, Observacion, Fecha)
             VALUES (?, 'Cambio de Requerimiento', ?, ?, ?, ?, NOW())
         `;
         const [movementResult] = await connection.query(insertMovementQuery, [
             materialId, 
-            newRequirement, 
+            valorIngresado, 
             idTaller, 
             idDocente || null, 
-            observations
+            observations || ''
         ]);
 
+        // 3. Actualizar o insertar el nuevo total acumulado en la tabla de requerimientos
         const updateRequirementQuery = `
             INSERT INTO materialxrotacionxtaller (Id_Taller, Id_Rotacion, Id_Material, Fecha, Requerimiento)
             VALUES (?, ?, ?, CURDATE(), ?)
@@ -510,10 +531,10 @@ app.post('/api/movimientos/requerimiento', async (req, res) => {
                 Requerimiento = VALUES(Requerimiento), 
                 Fecha = CURDATE()
         `;
-        await connection.query(updateRequirementQuery, [idTaller, idRotacion, materialId, newRequirement]);
+        await connection.query(updateRequirementQuery, [idTaller, idRotacion, materialId, cantidadFinal]);
         
         await connection.commit();
-        res.status(201).json({ id: movementResult.insertId, message: 'Requerimiento actualizado.' });
+        res.status(201).json({ id: movementResult.insertId, message: 'Requerimiento actualizado correctamente.' });
     } catch (error) {
         await connection.rollback();
         console.error('Error al cambiar el requerimiento:', error);
