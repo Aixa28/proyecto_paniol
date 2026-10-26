@@ -396,13 +396,52 @@ app.get('/api/reportes', async (req, res) => {
 // RUTA DE MOVIMIENTOS
 // ----------------------------------------------------
 app.post('/api/movimientos', async (req, res) => {
-    const { materialId, movementType, quantity, idTaller, idDocente, observations } = req.body;
+    let { materialId, movementType, quantity, idTaller, idDocente, observations } = req.body;
+    let valorIngresado = Number(quantity || 0);
     
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
 
-        // 1. Registrar el movimiento histórico
+        let idRotacion = 1;
+        let cantidadFinal = valorIngresado;
+
+        // Si es un Cambio de Requerimiento por taller, aplicamos la lógica acumulativa y validación
+        if (movementType === 'Cambio de Requerimiento' && idTaller) {
+            let [rotaciones] = await connection.query(
+                'SELECT Id_Rotacion FROM materialxrotacionxtaller WHERE Id_Taller = ? LIMIT 1', 
+                [idTaller]
+            );
+            if (rotaciones.length > 0) {
+                idRotacion = rotaciones[0].Id_Rotacion;
+            } else {
+                let [rotActiva] = await connection.query(
+                    'SELECT Id_Rotacion FROM rotacion ORDER BY Final DESC LIMIT 1'
+                );
+                if (rotActiva.length > 0) idRotacion = rotActiva[0].Id_Rotacion;
+            }
+
+            // Consultar el requerimiento actual de este taller específico
+            let [existe] = await connection.query(
+                'SELECT Requerimiento FROM materialxrotacionxtaller WHERE Id_Taller = ? AND Id_Material = ? AND Id_Rotacion = ?',
+                [idTaller, materialId, idRotacion]
+            );
+
+            let valorActual = existe.length > 0 ? Number(existe[0].Requerimiento || 0) : 0;
+
+            // 🛡️ VALIDACIÓN ESTRICTA: Si es resta, no permitir restar más de lo que tiene
+            if (valorIngresado < 0) {
+                const maximoARestar = -valorActual; 
+                if (valorIngresado < maximoARestar) {
+                    valorIngresado = maximoARestar; // Se ajusta al límite real disponible
+                }
+            }
+
+            cantidadFinal = valorActual + valorIngresado;
+            if (cantidadFinal < 0) cantidadFinal = 0;
+        }
+
+        // 1. Registrar el movimiento histórico con el valor validado/ajustado
         const queryMov = `
             INSERT INTO movimiento (Id_Material, Tipo, Cantidad, Id_Taller, Id_Docente, Observacion, Fecha)
             VALUES (?, ?, ?, ?, ?, ?, NOW())
@@ -410,55 +449,44 @@ app.post('/api/movimientos', async (req, res) => {
         await connection.query(queryMov, [
             materialId, 
             movementType, 
-            quantity, 
+            valorIngresado, 
             idTaller || null, 
             idDocente || null, 
             observations || ''
         ]);
 
-        // 2. Si es un Cambio de Requerimiento, actualizar o insertar en la tabla específica del requerimiento
+        // 2. Actualizar o insertar en la tabla específica del requerimiento
         if (movementType === 'Cambio de Requerimiento' && idTaller) {
-            // Buscamos si existe una rotación activa para este taller, o usamos la primera disponible
-            let [rotaciones] = await connection.query(
-                'SELECT Id_Rotacion FROM materialxrotacionxtaller WHERE Id_Taller = ? LIMIT 1', 
-                [idTaller]
-            );
-
-            let idRotacion = rotaciones.length > 0 ? rotaciones[0].Id_Rotacion : 1; // Default 1 si no hay rotación previa
-
-            // Verificamos si ya existe el registro para este material, taller y rotación
             let [existe] = await connection.query(
                 'SELECT * FROM materialxrotacionxtaller WHERE Id_Taller = ? AND Id_Material = ? AND Id_Rotacion = ?',
                 [idTaller, materialId, idRotacion]
             );
 
             if (existe.length > 0) {
-                // Actualizamos la cantidad requerida
                 await connection.query(
-                    'UPDATE materialxrotacionxtaller SET Requerimiento = ? WHERE Id_Taller = ? AND Id_Material = ? AND Id_Rotacion = ?',
-                    [quantity, idTaller, materialId, idRotacion]
+                    'UPDATE materialxrotacionxtaller SET Requerimiento = ?, Fecha = CURDATE() WHERE Id_Taller = ? AND Id_Material = ? AND Id_Rotacion = ?',
+                    [cantidadFinal, idTaller, materialId, idRotacion]
                 );
             } else {
-                // Insertamos el nuevo requerimiento específico
                 await connection.query(
-                    'INSERT INTO materialxrotacionxtaller (Id_Taller, Id_Rotacion, Id_Material, Requerimiento) VALUES (?, ?, ?, ?)',
-                    [idTaller, idRotacion, materialId, quantity]
+                    'INSERT INTO materialxrotacionxtaller (Id_Taller, Id_Rotacion, Id_Material, Fecha, Requerimiento) VALUES (?, ?, ?, CURDATE(), ?)',
+                    [idTaller, idRotacion, materialId, cantidadFinal]
                 );
             }
         }
 
         await connection.commit();
-        connection.release();
         res.json({ message: 'Movimiento y requerimiento procesados con éxito' });
     } catch (err) {
         await connection.rollback();
-        connection.release();
         console.error('Error al procesar movimiento:', err);
         res.status(500).json({ mensaje: 'Error al procesar el movimiento' });
+    } finally {
+        connection.release();
     }
 });
 
-aapp.post('/api/movimientos/requerimiento', async (req, res) => {
+app.post('/api/movimientos/requerimiento', async (req, res) => {
     let { materialId, idTaller, newRequirement, observations, idDocente } = req.body;
     const connection = await pool.getConnection();
 
@@ -490,27 +518,37 @@ aapp.post('/api/movimientos/requerimiento', async (req, res) => {
         }
 
         const idRotacion = rotations[0].Id_Rotacion;
-        const valorIngresado = Number(newRequirement || 0);
+        let valorIngresado = Number(newRequirement || 0);
 
-        // 1. Consultar si ya existe un requerimiento previo para este taller y material
+        // 1. Consultar el requerimiento actual de este taller específico para este material
         const [existingReq] = await connection.query(
             `SELECT Requerimiento FROM materialxrotacionxtaller 
              WHERE Id_Taller = ? AND Id_Rotacion = ? AND Id_Material = ?`,
             [idTaller, idRotacion, materialId]
         );
 
-        let cantidadFinal = valorIngresado;
-
-        // Si ya existía un registro, sumamos/restamos algebraicamente el valor ingresado al actual
+        let valorActual = 0;
         if (existingReq.length > 0) {
-            const valorActual = Number(existingReq[0].Requerimiento || 0);
-            cantidadFinal = valorActual + valorIngresado; // Si ingresas -8, se restará automáticamente
+            valorActual = Number(existingReq[0].Requerimiento || 0);
         }
 
-        // Si el resultado es menor o igual a 0, podemos asegurarnos de que no quede negativo
+        // 🛡️ VALIDACIÓN ESTRICTA: Impedir restar más de lo disponible
+        if (valorIngresado < 0) {
+            const maximoARestar = -valorActual; // Ej: si tiene 2, lo máximo a restar es -2
+            if (valorIngresado < maximoARestar) {
+                // Opción A: Ajustamos el valor al máximo posible para que no reste de más
+                valorIngresado = maximoARestar; 
+                
+                // (Opcional) Si prefieres bloquear la operación por completo en lugar de ajustarla, 
+                // puedes descomentar la siguiente línea:
+                // throw new Error(`No se puede restar ${Math.abs(newRequirement)}. El taller solo tiene ${valorActual} unidades.`);
+            }
+        }
+
+        let cantidadFinal = valorActual + valorIngresado;
         if (cantidadFinal < 0) cantidadFinal = 0;
 
-        // 2. Registrar el movimiento histórico con el valor ingresado (ej: -8)
+        // 2. Registrar el movimiento histórico con el valor exacto y verificado
         const insertMovementQuery = `
             INSERT INTO movimiento (Id_Material, Tipo, Cantidad, Id_Taller, Id_Docente, Observacion, Fecha)
             VALUES (?, 'Cambio de Requerimiento', ?, ?, ?, ?, NOW())
@@ -523,7 +561,7 @@ aapp.post('/api/movimientos/requerimiento', async (req, res) => {
             observations || ''
         ]);
 
-        // 3. Actualizar o insertar el nuevo total acumulado en la tabla de requerimientos
+        // 3. Actualizar la tabla de requerimientos específicos
         const updateRequirementQuery = `
             INSERT INTO materialxrotacionxtaller (Id_Taller, Id_Rotacion, Id_Material, Fecha, Requerimiento)
             VALUES (?, ?, ?, CURDATE(), ?)
